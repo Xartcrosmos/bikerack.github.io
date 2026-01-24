@@ -29,19 +29,20 @@
 </head>
 <body>
 
-  <h2 id="message">Validating slot...</h2>
+  <h2 id="message">Welcome to Smart BikeRack</h2>
   <div id="info" class="muted"></div>
 
-  <div id="actions" class="hidden">
+  <!-- Visitor (no QR scanned) -->
+  <div id="visitorActions">
+    <button id="visitorLoginBtn">Admin Login</button>
+  </div>
+
+  <!-- Slot user (QR scanned) -->
+  <div id="slotActions" class="hidden">
     <button id="registerBtn">Register</button>
-    <button id="loginBtn">Admin Login</button>
   </div>
 
   <script>
-    /* =========================
-       🔧 CONFIG
-       Replace with your project keys
-    ========================= */
     const SUPABASE_URL = "https://lguyiavotyrxdlyhsvmz.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxndXlpYXZvdHlyeGRseWhzdm16Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkxNzQ0MjQsImV4cCI6MjA4NDc1MDQyNH0.f1hT0B68mv2lxVsQldk3ABx_0yBBUK2t1fcRHWGhmyM";
 
@@ -49,41 +50,43 @@
 
     const messageEl = document.getElementById("message");
     const infoEl = document.getElementById("info");
-    const actionsEl = document.getElementById("actions");
+
+    const visitorActions = document.getElementById("visitorActions");
+    const slotActions = document.getElementById("slotActions");
 
     window.onload = async () => {
 
-      /* =========================
-         1️⃣ Read device + slot
-      ========================= */
       const params = new URLSearchParams(window.location.search);
       const device = params.get("device");
       const slot = parseInt(params.get("slot"));
 
+      /* =====================================
+         POV 1: Visitor (no QR)
+         just show admin login
+      ===================================== */
       if (!device || !slot) {
-        messageEl.textContent = "Invalid QR Code";
-        messageEl.classList.add("error");
+        messageEl.textContent = "Welcome! Please scan a QR code at the rack to register or use a slot.";
+        visitorActions.classList.remove("hidden");
+
+        document.getElementById("visitorLoginBtn").onclick = () => {
+          window.location.href = "login_dashboard.html";
+        };
         return;
       }
 
+
+      /* =====================================
+         POV 2: Slot user (QR scanned)
+      ===================================== */
+      visitorActions.classList.add("hidden");
       infoEl.textContent = `Device: ${device} | Slot: ${slot}`;
 
-
-      /* =========================
-         2️⃣ Create session id
-      ========================= */
       let sessionId = localStorage.getItem("session_id");
-
       if (!sessionId) {
         sessionId = crypto.randomUUID();
         localStorage.setItem("session_id", sessionId);
       }
 
-
-      /* =========================
-         3️⃣ Try acquire lock
-         calls Postgres function
-      ========================= */
       try {
         const { data: allowed, error } = await client.rpc("try_acquire_lock", {
           target_device: device,
@@ -100,18 +103,9 @@
           return;
         }
 
-
-        /* =========================
-           4️⃣ Show actions
-        ========================= */
         messageEl.textContent = `Rack Ready — Slot ${slot}`;
-        actionsEl.classList.remove("hidden");
+        slotActions.classList.remove("hidden");
 
-
-        /* =========================
-           5️⃣ Heartbeat (INSERT only)
-           keeps session alive
-        ========================= */
         setInterval(async () => {
           await client.from("sessions").insert([{
             device_uuid: device,
@@ -127,16 +121,8 @@
         messageEl.classList.add("error");
       }
 
-
-      /* =========================
-         Buttons
-      ========================= */
       document.getElementById("registerBtn").onclick = () => {
         window.location.href = `registration.html?device=${device}&slot=${slot}`;
-      };
-
-      document.getElementById("loginBtn").onclick = () => {
-        window.location.href = `login_dashboard.html`;
       };
     };
   </script>
