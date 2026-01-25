@@ -207,10 +207,14 @@
         /* success */
         case 3:
           statusMsg.className = "msg success";
-          statusMsg.textContent = "Registration successful!";
-
+          statusMsg.textContent = "Registration successful! Redirecting...";
+        
           clearTimeout(pollTimer);
-          localStorage.removeItem("session_id");
+        
+          setTimeout(() => {
+            window.location.href = `index.html?device=${device}&slot=${slot}`;
+          }, 1500);
+        
           return;
 
         /* deleted/ignored */
