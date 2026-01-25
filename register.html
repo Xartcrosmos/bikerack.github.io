@@ -1,1 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BikeRack Registration</title>
 
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      margin-top: 60px;
+    }
+
+    input {
+      padding: 8px;
+      margin: 6px;
+      font-size: 15px;
+      width: 220px;
+    }
+
+    button {
+      padding: 10px 20px;
+      margin-top: 10px;
+      cursor: pointer;
+    }
+
+    .hidden { display:none; }
+    .msg { margin-top:15px; font-weight:bold; }
+    .error { color:red; }
+    .success { color:green; }
+    .muted { color:#777; }
+  </style>
+</head>
+<body>
+
+  <h2 id="title">Preparing registration...</h2>
+
+  <div id="formBox" class="hidden">
+    <input id="nameInput" placeholder="Your Name" />
+    <br/>
+    <input id="contactInput" placeholder="Contact Number" />
+    <br/>
+    <button id="submitBtn">Submit & Scan Fingerprint</button>
+  </div>
+
+  <div id="statusMsg" class="msg muted"></div>
+
+  <script>
+    const SUPABASE_URL = "https://lguyiavotyrxdlyhsvmz.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxndXlpYXZvdHlyeGRseWhzdm16Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkxNzQ0MjQsImV4cCI6MjA4NDc1MDQyNH0.f1hT0B68mv2lxVsQldk3ABx_0yBBUK2t1fcRHWGhmyM";
+
+    const client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    const titleEl = document.getElementById("title");
+    const formBox = document.getElementById("formBox");
+    const statusMsg = document.getElementById("statusMsg");
+    const submitBtn = document.getElementById("submitBtn");
+
+    let pollTimer = null;
+
+    window.onload = async () => {
+
+      /* ============================
+         1️⃣ Validate URL + session
+      ============================ */
+      const params = new URLSearchParams(window.location.search);
+      const device = params.get("device");
+      const slot = parseInt(params.get("slot"));
+      const sessionId = localStorage.getItem("session_id");
+
+      if (!device || !slot || !sessionId) {
+        window.location.href = "index.html";
+        return;
+      }
+
+
+      /* ============================
+         2️⃣ Re-check lock
+      ============================ */
+      const { data: allowed } = await client.rpc("try_acquire_lock", {
+        target_device: device,
+        target_slot: slot,
+        new_session_id: sessionId,
+        timeout_seconds: 60
+      });
+
+      if (!allowed) {
+        titleEl.textContent = "Session expired. Returning...";
+        setTimeout(() => window.location.href = `index.html?device=${device}&slot=${slot}`, 1500);
+        return;
+      }
+
+
+      /* ============================
+         2.5️⃣ Cleanup old pending rows
+      ============================ */
+      await client
+        .from("registration")
+        .delete()
+        .eq("device_uuid", device)
+        .eq("slot", slot)
+        .eq("status", 0);
+
+
+      /* ============================
+         3️⃣ Show form
+      ============================ */
+      titleEl.textContent = `Registering for Slot ${slot}`;
+      formBox.classList.remove("hidden");
+
+
+      /* ============================
+         4️⃣ Heartbeat (keep alive)
+      ============================ */
+      setInterval(async () => {
+        await client.from("sessions").insert([{
+          device_uuid: device,
+          slot,
+          session_id: sessionId,
+          last_seen: Math.floor(Date.now() / 1000)
+        }]);
+      }, 15000);
+
+
+      /* ============================
+         5️⃣ Submit registration
+      ============================ */
+      submitBtn.onclick = async () => {
+
+        const name = document.getElementById("nameInput").value.trim();
+        const contact = document.getElementById("contactInput").value.trim();
+
+        if (!name || !contact) return;
+
+        submitBtn.disabled = true;
+
+        statusMsg.className = "msg muted";
+        statusMsg.textContent = "Waiting for fingerprint...";
+
+        await client.from("registration").insert([{
+          device_uuid: device,
+          slot,
+          name,
+          contact,
+          fingerid: null,
+          status: 0
+        }]);
+
+        pollStatus(device, slot);
+      };
+    };
+
+
+    /* ==================================
+       6️⃣ Poll hardware status
+    ================================== */
+    async function pollStatus(device, slot) {
+
+      const { data } = await client
+        .from("registration")
+        .select("*")
+        .eq("device_uuid", device)
+        .eq("slot", slot)
+        .order("created_at", { ascending: false })
+        .limit(1);
+
+      if (!data || data.length === 0) {
+        pollTimer = setTimeout(() => pollStatus(device, slot), 2000);
+        return;
+      }
+
+      const record = data[0];
+
+      switch (record.status) {
+
+        /* waiting */
+        case 0:
+          statusMsg.className = "msg muted";
+          statusMsg.textContent = "Waiting for fingerprint...";
+          break;
+
+        /* scan again */
+        case 1:
+          statusMsg.className = "msg muted";
+          statusMsg.textContent = "Scan fingerprint again...";
+          break;
+
+        /* duplicate/error → retry */
+        case 2:
+          statusMsg.className = "msg error";
+
+          alert("Fingerprint already existed or an error occurred.\nPlease try again.");
+
+          await client
+            .from("registration")
+            .update({ status: 0 })
+            .eq("id", record.id);
+
+          statusMsg.textContent = "Retrying... Waiting for fingerprint...";
+          break;
+
+        /* success */
+        case 3:
+          statusMsg.className = "msg success";
+          statusMsg.textContent = "Registration successful!";
+
+          clearTimeout(pollTimer);
+          localStorage.removeItem("session_id");
+          return;
+
+        /* deleted/ignored */
+        case 4:
+          clearTimeout(pollTimer);
+          return;
+      }
+
+      pollTimer = setTimeout(() => pollStatus(device, slot), 2000);
+    }
+  </script>
+
+</body>
+</html>
