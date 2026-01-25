@@ -43,6 +43,11 @@
       z-index: 999;
     }
 
+    /* IMPORTANT: ensure hidden overrides modal display */
+    .modal.hidden {
+      display: none;
+    }
+
     .modal-box {
       background: white;
       padding: 20px;
@@ -64,7 +69,7 @@
 
   <!-- Visitor (no QR scanned) -->
   <div id="visitorActions">
-    <button id="visitorLoginBtn">Admin Login</button>
+    <button type="button" id="visitorLoginBtn">Admin Login</button>
     <div class="muted">
       You don't have an account?
       <span id="claimLink" class="link">Claim your BikeRack unit now.</span>
@@ -86,7 +91,7 @@
       <input id="uuidInput" placeholder="Device UUID" />
       <input id="otcInput" placeholder="OTC Code" />
       <br>
-      <button id="claimBtn">Next</button>
+      <button type="button" id="claimBtn">Next</button>
       <button onclick="closeModal('claimModal')">Cancel</button>
     </div>
   </div>
@@ -101,7 +106,7 @@
       <input id="emailInput" placeholder="Gmail" />
       <input id="passInput" type="password" placeholder="Password" />
       <br>
-      <button id="createBtn">Register</button>
+      <button type="button" id="createBtn">Register</button>
       <button onclick="closeModal('createModal')">Cancel</button>
     </div>
   </div>
@@ -116,7 +121,7 @@
       <input id="loginEmail" placeholder="Gmail" />
       <input id="loginPass" type="password" placeholder="Password" />
       <br>
-      <button id="loginBtn">Login</button>
+      <button type="button" id="loginBtn">Login</button>
       <button onclick="closeModal('loginModal')">Cancel</button>
     </div>
   </div>
@@ -147,7 +152,13 @@
     }
 
 
-    window.onload = async () => {
+    // Wait until DOM is fully ready before attaching events
+document.addEventListener("DOMContentLoaded", () => {
+  document.getElementById("visitorLoginBtn").addEventListener("click", () => openModal("loginModal"));
+  document.getElementById("claimLink").addEventListener("click", () => openModal("claimModal"));
+});
+
+window.onload = async () => {
 
       const params = new URLSearchParams(window.location.search);
       const device = params.get("device");
@@ -160,9 +171,6 @@
       if (!device || !slot) {
         messageEl.textContent = "Welcome! Please scan a QR code at the rack to register or use a slot.";
         visitorActions.classList.remove("hidden");
-
-        document.getElementById("visitorLoginBtn").onclick = () => openModal("loginModal");
-        document.getElementById("claimLink").onclick = () => openModal("claimModal");
 
         return;
       }
@@ -228,24 +236,39 @@
       const uuid = document.getElementById("uuidInput").value.trim();
       const otc = document.getElementById("otcInput").value.trim();
 
-      if (!uuid || !otc) return alert("Fill all fields");
-
-      const { data } = await client
-        .from("device_unit")
-        .select("*")
-        .eq("uuid", uuid)
-        .eq("otc", otc)
-        .single();
-
-      if (!data || data.status === "claimed") {
-        alert("Invalid or already claimed device.");
+      if (!uuid || !otc) {
+        alert("Please enter both UUID and OTC.");
         return;
       }
 
-      closeModal("claimModal");
-      openModal("createModal");
+      try {
+        const { data, error } = await client
+          .from("device_unit")
+          .select("*")
+          .eq("uuid", uuid)
+          .eq("otc", otc)
+          .maybeSingle();
 
-      window._claimUUID = uuid; // temp store
+        if (error) throw error;
+
+        if (!data) {
+          alert("Device not found. Please check UUID/OTC.");
+          return;
+        }
+
+        if (data.status === "claimed") {
+          alert("This device is already claimed.");
+          return;
+        }
+
+        closeModal("claimModal");
+        openModal("createModal");
+        window._claimUUID = uuid;
+
+      } catch (err) {
+        console.error(err);
+        alert("Unable to verify device. Please try again.");
+      }
     };
 
 
@@ -257,20 +280,32 @@
       const email = document.getElementById("emailInput").value.trim();
       const password = document.getElementById("passInput").value.trim();
 
-      if (!email || !password) return;
+      if (!email || !password) {
+        alert("Please enter email and password.");
+        return;
+      }
 
-      const { data, error } = await client.auth.signUp({ email, password });
-      if (error) return alert(error.message);
+      try {
+        const { error } = await client.auth.signUp({ email, password });
+        if (error) {
+          alert(error.message);
+          return;
+        }
 
-      await client.from("admins").insert([{ email }]);
+        await client.from("admins").insert([{ email }]);
 
-      await client
-        .from("device_unit")
-        .update({ status: "claimed" })
-        .eq("uuid", window._claimUUID);
+        await client
+          .from("device_unit")
+          .update({ status: "claimed" })
+          .eq("uuid", window._claimUUID);
 
-      alert("Account created successfully!");
-      closeModal("createModal");
+        alert("Account created successfully!");
+        closeModal("createModal");
+
+      } catch (err) {
+        console.error(err);
+        alert("Registration failed. Please try again.");
+      }
     };
 
 
@@ -282,11 +317,42 @@
       const email = document.getElementById("loginEmail").value.trim();
       const password = document.getElementById("loginPass").value.trim();
 
-      const { error } = await client.auth.signInWithPassword({ email, password });
+      if (!email || !password) {
+        alert("Please enter email and password.");
+        return;
+      }
 
-      if (error) return alert("Invalid login.");
+      try {
+        // Step 1: authenticate
+        const { error } = await client.auth.signInWithPassword({ email, password });
 
-      window.location.href = "admin.html";
+        if (error) {
+          alert("Account does not exist or password is incorrect.");
+          return;
+        }
+
+        // Step 2: check admin permission
+        const { data: adminRow, error: adminErr } = await client
+          .from("admins")
+          .select("*")
+          .eq("email", email)
+          .maybeSingle();
+
+        if (adminErr) throw adminErr;
+
+        if (!adminRow) {
+          await client.auth.signOut();
+          alert("Account does not exist.");
+          return;
+        }
+
+        // success
+        window.location.href = "admin.html";
+
+      } catch (err) {
+        console.error(err);
+        alert("Login failed. Please check your connection.");
+      }
     };
 
   </script>
