@@ -1,3 +1,320 @@
-<html>
-  adsfdsf
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BikeRack Slot Access</title>
+
+  <!-- Supabase -->
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      margin-top: 100px;
+    }
+
+    button {
+      padding: 12px 25px;
+      margin: 8px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+
+    .hidden { display: none; }
+    .error { color: red; }
+    .muted { color: #777; font-size: 14px; }
+
+    .link {
+      color: #2563eb;
+      cursor: pointer;
+      text-decoration: underline;
+      font-size: 14px;
+    }
+
+    /* ===== Modal ===== */
+    .modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.5);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 999;
+    }
+
+    .modal.hidden {
+      display: none;
+    }
+
+    .modal-box {
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      width: 300px;
+      text-align: center;
+    }
+
+    .modal-box input {
+      width: 90%;
+      padding: 8px;
+      margin: 6px 0;
+    }
+
+    .modal-msg {
+      min-height: 18px;
+      margin-bottom: 8px;
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+
+  <h2 id="message">Welcome to Smart BikeRack</h2>
+  <div id="info" class="muted"></div>
+
+  <!-- Visitor -->
+  <div id="visitorActions">
+    <button type="button" id="visitorLoginBtn">Admin Login</button>
+    <div class="muted">
+      You don't have an account?
+      <span id="claimLink" class="link">Claim your BikeRack unit now.</span>
+    </div>
+  </div>
+
+  <!-- Slot user -->
+  <div id="slotActions" class="hidden">
+    <button type="button" id="registerBtn">Register</button>
+  </div>
+
+
+  <!-- Claim Modal -->
+  <div id="claimModal" class="modal hidden">
+    <div class="modal-box">
+      <h3>Claim Device</h3>
+      <div class="modal-msg muted"></div>
+      <input id="uuidInput" placeholder="Device UUID" />
+      <input id="otcInput" placeholder="OTC Code" />
+      <button type="button" id="claimBtn">Next</button>
+      <button type="button" id="cancelClaim">Cancel</button>
+    </div>
+  </div>
+
+  <!-- Create Modal -->
+  <div id="createModal" class="modal hidden">
+    <div class="modal-box">
+      <h3>Create Admin Account</h3>
+      <div class="modal-msg muted"></div>
+      <input id="emailInput" placeholder="Email" />
+      <input id="passInput" type="password" placeholder="Password" />
+      <button type="button" id="createBtn">Register</button>
+      <button type="button" id="cancelCreate">Cancel</button>
+    </div>
+  </div>
+
+  <!-- Login Modal -->
+  <div id="loginModal" class="modal hidden">
+    <div class="modal-box">
+      <h3>Admin Login</h3>
+      <div class="modal-msg muted"></div>
+      <input id="loginEmail" placeholder="Email" />
+      <input id="loginPass" type="password" placeholder="Password" />
+      <button type="button" id="loginBtn">Login</button>
+      <button type="button" id="cancelLogin">Cancel</button>
+    </div>
+  </div>
+
+
+  <script>
+
+  const SUPABASE_URL = "https://lguyiavotyrxdlyhsvmz.supabase.co";
+  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxndXlpYXZvdHlyeGRseWhzdm16Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkxNzQ0MjQsImV4cCI6MjA4NDc1MDQyNH0.f1hT0B68mv2lxVsQldk3ABx_0yBBUK2t1fcRHWGhmyM";
+
+  const client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  const messageEl = document.getElementById("message");
+  const infoEl = document.getElementById("info");
+  const visitorActions = document.getElementById("visitorActions");
+  const slotActions = document.getElementById("slotActions");
+
+
+  /* ---------------- Modal helpers ---------------- */
+  function openModal(id) {
+    document.getElementById(id).classList.remove("hidden");
+  }
+
+  function closeModal(id) {
+    document.getElementById(id).classList.add("hidden");
+  }
+
+  function showMsg(text, isError) {
+    const msg = document.querySelector('.modal:not(.hidden) .modal-msg');
+    if (!msg) return;
+    msg.textContent = text;
+    msg.className = 'modal-msg ' + (isError ? 'error' : 'muted');
+  }
+
+
+  /* ---------------- Events ---------------- */
+  document.getElementById("visitorLoginBtn").onclick = () => openModal("loginModal");
+  document.getElementById("claimLink").onclick = () => openModal("claimModal");
+
+  document.getElementById("cancelClaim").onclick = () => closeModal("claimModal");
+  document.getElementById("cancelCreate").onclick = () => closeModal("createModal");
+  document.getElementById("cancelLogin").onclick = () => closeModal("loginModal");
+
+
+  /* ---------------- Page load ---------------- */
+  window.addEventListener("load", async () => {
+
+    const params = new URLSearchParams(window.location.search);
+    const device = params.get("device");
+    const slot = parseInt(params.get("slot"));
+
+    if (!device || !slot) {
+      messageEl.textContent = "Welcome! Please scan a QR code to use a slot.";
+      return;
+    }
+
+    visitorActions.classList.add("hidden");
+    infoEl.textContent = "Device: " + device + " | Slot: " + slot;
+
+    let sessionId = localStorage.getItem("session_id");
+    if (!sessionId) {
+      sessionId = crypto.randomUUID();
+      localStorage.setItem("session_id", sessionId);
+    }
+
+    const { data: allowed } = await client.rpc("try_acquire_lock", {
+      target_device: device,
+      target_slot: slot,
+      new_session_id: sessionId,
+      timeout_seconds: 60
+    });
+
+    if (!allowed) {
+      messageEl.textContent = "Slot currently in use.";
+      messageEl.classList.add("error");
+      return;
+    }
+
+    messageEl.textContent = "Rack Ready - Slot " + slot;
+    slotActions.classList.remove("hidden");
+
+    setInterval(async () => {
+      await client.from("sessions").insert([{
+        device_uuid: device,
+        slot: slot,
+        session_id: sessionId,
+        last_seen: Math.floor(Date.now() / 1000)
+      }]);
+    }, 15000);
+
+    document.getElementById("registerBtn").onclick = () => {
+      window.location.href = "register.html?device=" + device + "&slot=" + slot;
+    };
+  });
+
+
+  /* ---------------- Claim ---------------- */
+  document.getElementById("claimBtn").onclick = async () => {
+
+    const uuid = document.getElementById("uuidInput").value.trim();
+    const otc = document.getElementById("otcInput").value.trim();
+
+    if (!uuid || !otc) return showMsg("Enter UUID and OTC", true);
+
+    const { data } = await client
+      .from("device_unit")
+      .select("*")
+      .eq("uuid", uuid)
+      .eq("otc", otc)
+      .maybeSingle();
+
+    if (!data) return showMsg("Invalid device", true);
+    if (data.status === "claimed") return showMsg("Already claimed", true);
+
+    window._claimUUID = uuid;
+    closeModal("claimModal");
+    openModal("createModal");
+  };
+
+
+  /* ---------------- Create admin ---------------- */
+  document.getElementById("createBtn").onclick = async () => {
+
+    const email = document.getElementById("emailInput").value.trim();
+    const password = document.getElementById("passInput").value.trim();
+
+    if (!email || !password) return showMsg("Enter email and password", true);
+
+    // NOTE: your admins table = id, created_at, email, password_hash
+    // so we INSERT directly (no Supabase Auth here)
+
+    const { data: adminRow, error: insertErr } = await client
+      .from("admins")
+      .insert([{ email: email, password_hash: password }])
+      .select()
+      .single();
+
+    if (insertErr) {
+      console.error(insertErr);
+      return showMsg("Failed creating admin account", true);
+    }
+
+    const adminId = adminRow.id; // <-- use admins.id
+
+    // claim device with this admin_id
+    const { error: updateErr } = await client
+      .from("device_unit")
+      .update({ status: "claimed", admin_id: adminId })
+      .eq("uuid", window._claimUUID);
+
+    if (updateErr) {
+      console.error(updateErr);
+      return showMsg("Failed claiming device", true);
+    }
+
+    showMsg("Account created", false);
+    setTimeout(() => closeModal("createModal"), 1000);
+  };
+
+
+  /* ---------------- Login ---------------- */
+  document.getElementById("loginBtn").onclick = async () => {
+
+    const email = document.getElementById("loginEmail").value.trim();
+    const password = document.getElementById("loginPass").value.trim();
+
+    if (!email || !password) return showMsg("Enter email and password", true);
+
+    // YOU ARE NOT USING SUPABASE AUTH
+    // so check directly against admins table
+
+    const { data, error } = await client
+      .from("admins")
+      .select("*")
+      .eq("email", email)
+      .eq("password_hash", password)
+      .maybeSingle();
+
+    if (error) {
+      console.error(error);
+      return showMsg("Login failed", true);
+    }
+
+    if (!data) return showMsg("Invalid login", true);
+
+    // success
+    localStorage.setItem("admin_id", data.id);
+    window.location.href = "admin.html";
+  };
+
+  </script>
+
+</body>
 </html>
