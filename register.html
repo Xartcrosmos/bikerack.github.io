@@ -192,14 +192,16 @@
         case 2:
           statusMsg.className = "msg error";
 
-          alert("Fingerprint already existed or an error occurred.\nPlease try again.");
+          // Wait for user confirmation first (alert is blocking)
+          alert("Fingerprint already existed, error was found. Please try again.");
 
+          // AFTER user clicks OK → reset status back to 0
           await client
             .from("registration")
             .update({ status: 0 })
             .eq("id", record.id);
 
-          statusMsg.textContent = "Retrying... Waiting for fingerprint...";
+          statusMsg.textContent = "Waiting for fingerprint...";
           break;
 
         /* success */
