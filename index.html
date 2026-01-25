@@ -25,6 +25,36 @@
     .hidden { display: none; }
     .error { color: red; }
     .muted { color: #777; font-size: 14px; }
+    .link {
+      color: #2563eb;
+      cursor: pointer;
+      text-decoration: underline;
+      font-size: 14px;
+    }
+
+    /* ===== Modal ===== */
+    .modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 999;
+    }
+
+    .modal-box {
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      width: 300px;
+    }
+
+    .modal-box input {
+      width: 90%;
+      padding: 8px;
+      margin: 6px 0;
+    }
   </style>
 </head>
 <body>
@@ -35,12 +65,62 @@
   <!-- Visitor (no QR scanned) -->
   <div id="visitorActions">
     <button id="visitorLoginBtn">Admin Login</button>
+    <div class="muted">
+      You don't have an account?
+      <span id="claimLink" class="link">Claim your BikeRack unit now.</span>
+    </div>
   </div>
 
   <!-- Slot user (QR scanned) -->
   <div id="slotActions" class="hidden">
     <button id="registerBtn">Register</button>
   </div>
+
+
+  <!-- ============================ -->
+  <!-- 🔹 Claim Device Modal -->
+  <!-- ============================ -->
+  <div id="claimModal" class="modal hidden">
+    <div class="modal-box">
+      <h3>Claim Device</h3>
+      <input id="uuidInput" placeholder="Device UUID" />
+      <input id="otcInput" placeholder="OTC Code" />
+      <br>
+      <button id="claimBtn">Next</button>
+      <button onclick="closeModal('claimModal')">Cancel</button>
+    </div>
+  </div>
+
+
+  <!-- ============================ -->
+  <!-- 🔹 Create Admin Modal -->
+  <!-- ============================ -->
+  <div id="createModal" class="modal hidden">
+    <div class="modal-box">
+      <h3>Create Admin Account</h3>
+      <input id="emailInput" placeholder="Gmail" />
+      <input id="passInput" type="password" placeholder="Password" />
+      <br>
+      <button id="createBtn">Register</button>
+      <button onclick="closeModal('createModal')">Cancel</button>
+    </div>
+  </div>
+
+
+  <!-- ============================ -->
+  <!-- 🔹 Login Modal -->
+  <!-- ============================ -->
+  <div id="loginModal" class="modal hidden">
+    <div class="modal-box">
+      <h3>Admin Login</h3>
+      <input id="loginEmail" placeholder="Gmail" />
+      <input id="loginPass" type="password" placeholder="Password" />
+      <br>
+      <button id="loginBtn">Login</button>
+      <button onclick="closeModal('loginModal')">Cancel</button>
+    </div>
+  </div>
+
 
   <script>
     const SUPABASE_URL = "https://lguyiavotyrxdlyhsvmz.supabase.co";
@@ -54,30 +134,43 @@
     const visitorActions = document.getElementById("visitorActions");
     const slotActions = document.getElementById("slotActions");
 
+
+    /* ============================
+       Modal helpers
+    ============================ */
+    function openModal(id) {
+      document.getElementById(id).classList.remove("hidden");
+    }
+
+    function closeModal(id) {
+      document.getElementById(id).classList.add("hidden");
+    }
+
+
     window.onload = async () => {
 
       const params = new URLSearchParams(window.location.search);
       const device = params.get("device");
       const slot = parseInt(params.get("slot"));
 
-      /* =====================================
-         POV 1: Visitor (no QR)
-         just show admin login
-      ===================================== */
+
+      /* ============================
+         Visitor mode (ADMIN SIDE)
+      ============================ */
       if (!device || !slot) {
         messageEl.textContent = "Welcome! Please scan a QR code at the rack to register or use a slot.";
         visitorActions.classList.remove("hidden");
 
-        document.getElementById("visitorLoginBtn").onclick = () => {
-          window.location.href = "login_dashboard.html";
-        };
+        document.getElementById("visitorLoginBtn").onclick = () => openModal("loginModal");
+        document.getElementById("claimLink").onclick = () => openModal("claimModal");
+
         return;
       }
 
 
-      /* =====================================
-         POV 2: Slot user (QR scanned)
-      ===================================== */
+      /* ============================
+         Slot user mode
+      ============================ */
       visitorActions.classList.add("hidden");
       infoEl.textContent = `Device: ${device} | Slot: ${slot}`;
 
@@ -125,6 +218,77 @@
         window.location.href = `register.html?device=${device}&slot=${slot}`;
       };
     };
+
+
+    /* ============================
+       Claim device logic
+    ============================ */
+    document.getElementById("claimBtn").onclick = async () => {
+
+      const uuid = document.getElementById("uuidInput").value.trim();
+      const otc = document.getElementById("otcInput").value.trim();
+
+      if (!uuid || !otc) return alert("Fill all fields");
+
+      const { data } = await client
+        .from("device_unit")
+        .select("*")
+        .eq("uuid", uuid)
+        .eq("otc", otc)
+        .single();
+
+      if (!data || data.status === "claimed") {
+        alert("Invalid or already claimed device.");
+        return;
+      }
+
+      closeModal("claimModal");
+      openModal("createModal");
+
+      window._claimUUID = uuid; // temp store
+    };
+
+
+    /* ============================
+       Create admin account
+    ============================ */
+    document.getElementById("createBtn").onclick = async () => {
+
+      const email = document.getElementById("emailInput").value.trim();
+      const password = document.getElementById("passInput").value.trim();
+
+      if (!email || !password) return;
+
+      const { data, error } = await client.auth.signUp({ email, password });
+      if (error) return alert(error.message);
+
+      await client.from("admins").insert([{ email }]);
+
+      await client
+        .from("device_unit")
+        .update({ status: "claimed" })
+        .eq("uuid", window._claimUUID);
+
+      alert("Account created successfully!");
+      closeModal("createModal");
+    };
+
+
+    /* ============================
+       Admin login
+    ============================ */
+    document.getElementById("loginBtn").onclick = async () => {
+
+      const email = document.getElementById("loginEmail").value.trim();
+      const password = document.getElementById("loginPass").value.trim();
+
+      const { error } = await client.auth.signInWithPassword({ email, password });
+
+      if (error) return alert("Invalid login.");
+
+      window.location.href = "admin.html";
+    };
+
   </script>
 
 </body>
