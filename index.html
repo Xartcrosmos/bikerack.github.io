@@ -1,138 +1,123 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>BikeRack Slot Access</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>BikeRack Slot Access</title>
 
-  <!-- FIX: CDN must be SELF‑CLOSED. NEVER put JS inside this tag -->
-  <script src="https://unpkg.com/@supabase/supabase-js@2">
-/* slot login button */
-document.getElementById("loginSlotBtn").onclick=()=>openModal("loginModal");
-</script>
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 
-  <style>
-    body{font-family:Arial,sans-serif;text-align:center;margin-top:100px}
-    button{padding:12px 25px;margin:8px;font-size:16px;cursor:pointer}
-    .hidden{display:none}
-    .error{color:red}
-    .muted{color:#777;font-size:14px}
-    .link{color:#2563eb;cursor:pointer;text-decoration:underline}
-
-    .modal{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;justify-content:center;align-items:center}
-    .modal.hidden{display:none}
-
-    .modal-box{background:#fff;padding:20px;border-radius:10px;width:300px}
-    .modal-box input{width:90%;padding:8px;margin:6px 0}
-    .modal-msg{min-height:18px;font-size:13px;margin-bottom:8px}
-  </style>
+<style>
+body{font-family:Arial;text-align:center;margin-top:100px}
+button{padding:12px 25px;margin:8px}
+.hidden{display:none}
+.error{color:red}
+.muted{color:#777}
+</style>
 </head>
 <body>
 
 <h2 id="message">Welcome to Smart BikeRack</h2>
 <div id="info" class="muted"></div>
 
+<!-- VISITOR -->
 <div id="visitorActions">
-  <button type="button" id="visitorLoginBtn">Admin Login</button>
-  <div class="muted">You don't have an account? <span id="claimLink" class="link">Claim your BikeRack unit now.</span></div>
+  <button id="visitorLoginBtn">Admin Login</button>
 </div>
 
+<!-- SLOT -->
 <div id="slotActions" class="hidden">
-  <button type="button" id="loginSlotBtn">Login</button>
+  <button id="loginBtn">Login</button>
   <div class="muted">Register to create account</div>
-  <button type="button" id="registerBtn">Register</button>
+  <button id="registerBtn">Register</button>
 </div>
-
-
-<!-- ================= MODALS ================= -->
-
-<div id="claimModal" class="modal hidden">
-  <div class="modal-box">
-    <h3>Claim Device</h3>
-    <div class="modal-msg muted"></div>
-    <input id="uuidInput" placeholder="Device UUID" />
-    <input id="otcInput" placeholder="OTC Code" />
-    <button id="claimBtn">Next</button>
-    <button id="cancelClaim">Cancel</button>
-  </div>
-</div>
-
-<div id="loginModal" class="modal hidden">
-  <div class="modal-box">
-    <h3>Admin Login</h3>
-    <div class="modal-msg muted"></div>
-    <input id="loginEmail" placeholder="Email" />
-    <input id="loginPass" type="password" placeholder="Password" />
-    <button id="loginBtn">Login</button>
-    <button id="cancelLogin">Cancel</button>
-  </div>
-</div>
-
-
-<!-- ================= MAIN SCRIPT ================= -->
 
 <script>
-
-/* ===== CONFIG ===== */
+/* ================= CONFIG ================= */
 const SUPABASE_URL = "https://lguyiavotyrxdlyhsvmz.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxndXlpYXZvdHlyeGRseWhzdm16Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkxNzQ0MjQsImV4cCI6MjA4NDc1MDQyNH0.f1hT0B68mv2lxVsQldk3ABx_0yBBUK2t1fcRHWGhmyM";
+
 const client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-/* ===== HELPERS ===== */
 const message = document.getElementById("message");
 const info = document.getElementById("info");
 const visitorActions = document.getElementById("visitorActions");
 const slotActions = document.getElementById("slotActions");
 
-function parseError(e){ return e?.message || String(e); }
-async function safe(q){ const {data,error}=await q; if(error) throw error; return data; }
-
-
-/* =====================================================
-   FIXED SLOT MODE LOGIC (THIS WAS BROKEN BEFORE)
-   Runs AFTER page loads
-===================================================== */
-window.addEventListener("load", async ()=>{
+/* ================= LOAD ================= */
+window.onload = async () => {
 
   const params = new URLSearchParams(window.location.search);
   const device = params.get("device");
   const slot = parseInt(params.get("slot"));
 
-  /* VISITOR MODE */
+  /* visitor */
   if(!device || !slot){
     visitorActions.classList.remove("hidden");
     return;
   }
 
-  /* SLOT MODE */
+  /* slot mode */
   visitorActions.classList.add("hidden");
+  slotActions.classList.remove("hidden");
   info.textContent = `Device: ${device} | Slot: ${slot}`;
 
-  try{
-    /* OCCUPANCY CHECK */
-    const active = await safe(
-      client.from("rack_sessions")
-        .select("id")
-        .eq("device_uuid",device)
-        .eq("slot",slot)
-        .eq("status",1)
-        .maybeSingle()
-    );
+  /* block if occupied */
+  const { data } = await client
+    .from("rack_sessions")
+    .select("id")
+    .eq("device_uuid", device)
+    .eq("slot", slot)
+    .eq("status", 1)
+    .maybeSingle();
 
-    if(active){
-      message.textContent = "Slot currently occupied";
-      message.classList.add("error");
-      return;
-    }
-
-    slotActions.classList.remove("hidden");
-
-  }catch(e){
-    message.textContent = parseError(e);
+  if(data){
+    message.textContent = "Slot currently occupied";
     message.classList.add("error");
+    slotActions.classList.add("hidden");
   }
-});
 
+  /* LOGIN BUTTON (REAL LOGIC) */
+  document.getElementById("loginBtn").onclick = async () => {
+
+    /* create handshake row */
+    const { data: row } = await client
+      .from("rack_sessions")
+      .insert([{
+        device_uuid: device,
+        slot: slot,
+        status: 0
+      }])
+      .select()
+      .single();
+
+    /* poll until hardware updates */
+    const poll = setInterval(async () => {
+      const { data: updated } = await client
+        .from("rack_sessions")
+        .select("status")
+        .eq("id", row.id)
+        .single();
+
+      if(updated.status === 1){
+        clearInterval(poll);
+        window.location.href =
+          `login.html?device=${device}&slot=${slot}&id=${row.id}`;
+      }
+
+      if(updated.status === 2){
+        clearInterval(poll);
+        alert("Login failed. Try again.");
+      }
+    }, 1500);
+  };
+
+  /* REGISTER */
+  document.getElementById("registerBtn").onclick = () => {
+    window.location.href =
+      `register.html?device=${device}&slot=${slot}`;
+  };
+};
 </script>
 
 </body>
