@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>BikeRack Slot Access</title>
 
+  <!-- FIX: CDN must be SELF‑CLOSED. NEVER put JS inside this tag -->
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 
   <style>
@@ -38,315 +39,94 @@
 </div>
 
 
-<!-- Claim -->
+<!-- ================= MODALS ================= -->
+
 <div id="claimModal" class="modal hidden">
   <div class="modal-box">
     <h3>Claim Device</h3>
     <div class="modal-msg muted"></div>
     <input id="uuidInput" placeholder="Device UUID" />
     <input id="otcInput" placeholder="OTC Code" />
-    <button type="button" id="claimBtn">Next</button>
-    <button type="button" id="cancelClaim">Cancel</button>
+    <button id="claimBtn">Next</button>
+    <button id="cancelClaim">Cancel</button>
   </div>
 </div>
 
-<!-- Create -->
-<div id="createModal" class="modal hidden">
-  <div class="modal-box">
-    <h3>Create Admin Account</h3>
-    <div class="modal-msg muted"></div>
-    <input id="emailInput" placeholder="Email" />
-    <input id="passInput" type="password" placeholder="Password" />
-    <button type="button" id="createBtn">Send OTP</button>
-    <button type="button" id="cancelCreate">Cancel</button>
-  </div>
-</div>
-
-<!-- OTP -->
-<div id="otpModal" class="modal hidden">
-  <div class="modal-box">
-    <h3>Verify OTP</h3>
-    <div class="modal-msg muted"></div>
-    <input id="otpInput" placeholder="Enter OTP code" />
-    <button type="button" id="verifyOtpBtn">Verify</button>
-    <button type="button" id="cancelOtp">Cancel</button>
-  </div>
-</div>
-
-<!-- Login -->
 <div id="loginModal" class="modal hidden">
   <div class="modal-box">
     <h3>Admin Login</h3>
     <div class="modal-msg muted"></div>
     <input id="loginEmail" placeholder="Email" />
     <input id="loginPass" type="password" placeholder="Password" />
-    <button type="button" id="loginBtn">Login</button>
-    <button type="button" id="cancelLogin">Cancel</button>
+    <button id="loginBtn">Login</button>
+    <button id="cancelLogin">Cancel</button>
   </div>
 </div>
 
 
+<!-- ================= MAIN SCRIPT ================= -->
+
 <script>
 
-/* =====================================================
-   CLEAN + SAFE VERSION
-   Fixes:
-   - [object Object] errors
-   - hidden Supabase errors
-   - proper error strings
-===================================================== */
-
-/* IMPORTANT:
-   Your previous ANON KEY was corrupted which causes:
-   "Invalid API key"
-   Paste your REAL public anon key from:
-   Supabase → Settings → API → anon public
-*/
+/* ===== CONFIG ===== */
 const SUPABASE_URL = "https://lguyiavotyrxdlyhsvmz.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxndXlpYXZvdHlyeGRseWhzdm16Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkxNzQ0MjQsImV4cCI6MjA4NDc1MDQyNH0.f1hT0B68mv2lxVsQldk3ABx_0yBBUK2t1fcRHWGhmyM"; // <-- replace this
-
+const SUPABASE_ANON_KEY = "PASTE_YOUR_REAL_ANON_PUBLIC_KEY_HERE";
 const client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-/* ---------- SLOT OCCUPANCY CHECK (RUN ON LOAD) ---------- */
+/* ===== HELPERS ===== */
+const message = document.getElementById("message");
+const info = document.getElementById("info");
+const visitorActions = document.getElementById("visitorActions");
+const slotActions = document.getElementById("slotActions");
+
+function parseError(e){ return e?.message || String(e); }
+async function safe(q){ const {data,error}=await q; if(error) throw error; return data; }
+
+
+/* =====================================================
+   FIXED SLOT MODE LOGIC (THIS WAS BROKEN BEFORE)
+   Runs AFTER page loads
+===================================================== */
 window.addEventListener("load", async ()=>{
+
   const params = new URLSearchParams(window.location.search);
   const device = params.get("device");
-  const slot   = parseInt(params.get("slot"));
+  const slot = parseInt(params.get("slot"));
 
-  if(!device || !slot) return; // visitor mode
+  /* VISITOR MODE */
+  if(!device || !slot){
+    visitorActions.classList.remove("hidden");
+    return;
+  }
 
+  /* SLOT MODE */
+  visitorActions.classList.add("hidden");
   info.textContent = `Device: ${device} | Slot: ${slot}`;
 
   try{
+    /* OCCUPANCY CHECK */
     const active = await safe(
       client.from("rack_sessions")
         .select("id")
-        .eq("device_uuid", device)
-        .eq("slot", slot)
-        .eq("status", 1)
+        .eq("device_uuid",device)
+        .eq("slot",slot)
+        .eq("status",1)
         .maybeSingle()
     );
 
     if(active){
       message.textContent = "Slot currently occupied";
       message.classList.add("error");
-      slotActions.classList.add("hidden");
-    }else{
-      slotActions.classList.remove("hidden");
+      return;
     }
+
+    slotActions.classList.remove("hidden");
+
   }catch(e){
     message.textContent = parseError(e);
     message.classList.add("error");
   }
 });
-
-/* ---------- helpers ---------- */
-function openModal(id){ document.getElementById(id).classList.remove("hidden"); }
-function closeModal(id){ document.getElementById(id).classList.add("hidden"); }
-
-function showMsg(text, err=false){
-  const el = document.querySelector('.modal:not(.hidden) .modal-msg');
-  if(!el) return;
-  el.textContent = String(text);
-  el.className = 'modal-msg ' + (err ? 'error' : 'muted');
-}
-
-/* ---------- FIX: readable errors ---------- */
-function parseError(e){
-  if(!e) return 'Unknown error';
-  if(typeof e === 'string') return e;
-  if(e.message) return e.message;
-  return JSON.stringify(e);
-}
-
-async function safe(query){
-  const { data, error } = await query;
-  if(error) throw new Error(parseError(error));
-  return data;
-}
-
-/* ---------- events ---------- */
-visitorLoginBtn.onclick=()=>openModal("loginModal");
-claimLink.onclick=()=>openModal("claimModal");
-cancelClaim.onclick=()=>closeModal("claimModal");
-cancelCreate.onclick=()=>closeModal("createModal");
-cancelOtp.onclick=()=>closeModal("otpModal");
-cancelLogin.onclick=()=>closeModal("loginModal");
-
-
-/* ---------- CLAIM ---------- */
-claimBtn.onclick=async()=>{
-  try{
-    const uuid = uuidInput.value.trim();
-    const otc  = otcInput.value.trim();
-
-    if(!uuid||!otc) return showMsg("Enter UUID and OTC",true);
-
-    const data = await safe(
-      client.from("device_unit").select("*").eq("uuid",uuid).eq("otc",otc).maybeSingle()
-    );
-
-    if(!data) return showMsg("Invalid device",true);
-    if(data.status === "claimed") return showMsg("Already claimed",true);
-
-    window._claimUUID = uuid;
-    closeModal("claimModal");
-    openModal("createModal");
-  }
-  catch(e){ showMsg(parseError(e), true); }
-};
-
-
-/* ---------- REGISTER / LOGIN (EMAIL STEP) ---------- */
-let loginMode = false; // false = register, true = existing user login
-let cooldown=false;
-let cooldownTimer=null;
-
-createBtn.onclick=async()=>{
-  try{
-    if(cooldown) return showMsg(`Wait ${createBtn.dataset.left||60}s before retrying.`,true);
-
-    const email=emailInput.value.trim();
-    const pass=passInput.value.trim();
-
-    if(!email||!pass) return showMsg("Enter email and password",true);
-
-    // check if email already exists
-    const existing = await safe(
-      client.from("admins").select("*").eq("email",email).maybeSingle()
-    );
-
-    /* ================= LOGIN FLOW ================= */
-    if(existing){
-      // first click → just inform user
-      if(!loginMode){
-        loginMode = true;
-        return showMsg("This email already owns a unit. Enter password to continue.", false);
-      }
-
-      // second click → verify password
-      if(existing.password_hash !== pass)
-        return showMsg("Incorrect password", true);
-
-      // correct → claim device directly (no OTP)
-      await safe(
-        client.from("device_unit")
-          .update({ status:"claimed", admin_id:existing.id })
-          .eq("uuid", window._claimUUID)
-      );
-
-      showMsg("Device linked successfully", false);
-      setTimeout(()=>closeModal("createModal"),1000);
-      return;
-    }
-
-    /* ================= REGISTER FLOW ================= */
-    // new email → OTP required
-    window._pendingEmail=email;
-    window._pendingPass=pass;
-
-    createBtn.disabled = true;
-
-    const { error } = await client.auth.signInWithOtp({
-      email,
-      options:{ shouldCreateUser:true, emailRedirectTo:window.location.origin }
-    });
-
-    const startCooldown = ()=>{
-      cooldown=true;
-      let seconds=60;
-      createBtn.dataset.left = seconds;
-      createBtn.textContent = `Wait ${seconds}s`;
-
-      cooldownTimer = setInterval(()=>{
-        seconds--;
-        createBtn.dataset.left = seconds;
-        createBtn.textContent = seconds>0 ? `Wait ${seconds}s` : "Send OTP";
-
-        if(seconds<=0){
-          clearInterval(cooldownTimer);
-          cooldown=false;
-          createBtn.disabled=false;
-        }
-      },1000);
-    };
-
-    if(error){
-      if(error.message && error.message.toLowerCase().includes("rate")){
-        startCooldown();
-        return showMsg("Email rate limit. Wait 60s.",true);
-      }
-      throw error;
-    }
-
-    startCooldown();
-
-    closeModal("createModal");
-    openModal("otpModal");
-    showMsg("OTP sent to email",false);
-  }
-  catch(e){
-    createBtn.disabled=false;
-    showMsg(parseError(e), true);
-  }
-};
-
-
-/* ---------- OTP VERIFY ---------- */
-verifyOtpBtn.onclick=async()=>{
-  try{
-    const token=otpInput.value.trim();
-    if(!token) return showMsg("Enter OTP",true);
-
-    const { error } = await client.auth.verifyOtp({
-      email:window._pendingEmail,
-      token,
-      type:'signup'
-    });
-
-    if(error) throw error;
-
-    const admin = await safe(
-      client.from("admins")
-        .insert([{ email:window._pendingEmail, password_hash:window._pendingPass }])
-        .select()
-        .single()
-    );
-
-    await safe(
-      client.from("device_unit")
-        .update({ status:"claimed", admin_id:admin.id })
-        .eq("uuid", window._claimUUID)
-    );
-
-    showMsg("Account created",false);
-    setTimeout(()=>closeModal("otpModal"),1000);
-  }
-  catch(e){ showMsg(parseError(e), true); }
-};
-
-
-/* ---------- LOGIN ---------- */
-loginBtn.onclick=async()=>{
-  try{
-    const email=loginEmail.value.trim();
-    const pass=loginPass.value.trim();
-
-    const admin = await safe(
-      client.from("admins")
-        .select("*")
-        .eq("email",email)
-        .eq("password_hash",pass)
-        .maybeSingle()
-    );
-
-    if(!admin) return showMsg("Invalid login",true);
-
-    localStorage.setItem("admin_id", admin.id);
-    window.location.href="admin.html";
-  }
-  catch(e){ showMsg(parseError(e), true); }
-};
 
 </script>
 
