@@ -20,12 +20,12 @@ button{padding:12px 25px;margin:8px;font-size:16px}
 <h2 id="message">Welcome to Smart BikeRack</h2>
 <div id="info" class="muted"></div>
 
-<!-- Visitor -->
+<!-- VISITOR -->
 <div id="visitorActions">
   <button id="visitorLoginBtn">Admin Login</button>
 </div>
 
-<!-- Slot -->
+<!-- SLOT -->
 <div id="slotActions" class="hidden">
   <button id="loginBtn">Login</button>
   <div class="muted">Register to create account</div>
@@ -52,7 +52,7 @@ window.onload = async () => {
   const device = params.get("device");
   const slot = parseInt(params.get("slot"));
 
-  /* visitor mode */
+  /* visitor */
   if(!device || !slot){
     visitorActions.classList.remove("hidden");
     return;
@@ -79,7 +79,7 @@ window.onload = async () => {
     return;
   }
 
-  /* ================= LOGIN BUTTON ================= */
+  /* ================= LOGIN ================= */
   loginBtn.onclick = async () => {
 
     loginBtn.disabled = true;
@@ -90,7 +90,8 @@ window.onload = async () => {
       .insert([{
         device_uuid: device,
         slot: slot,
-        status: 0
+        status: 0,
+        user_id: null
       }])
       .select()
       .single();
@@ -99,7 +100,7 @@ window.onload = async () => {
 
       const { data } = await client
         .from("rack_sessions")
-        .select("status")
+        .select("status,user_id")
         .eq("id", row.id)
         .single();
 
@@ -107,8 +108,9 @@ window.onload = async () => {
       if(data.status === 1){
         clearInterval(poll);
         message.textContent = "Login successful. Redirecting...";
+
         window.location.href =
-          `login.html?device=${device}&slot=${slot}&id=${row.id}`;
+          `login.html?device=${device}&slot=${slot}&id=${row.id}&uid=${data.user_id}`;
       }
 
       /* fail */
