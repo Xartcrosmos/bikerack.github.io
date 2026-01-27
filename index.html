@@ -9,7 +9,7 @@
 
 <style>
 body{font-family:Arial;text-align:center;margin-top:100px}
-button{padding:12px 25px;margin:8px}
+button{padding:12px 25px;margin:8px;font-size:16px}
 .hidden{display:none}
 .error{color:red}
 .muted{color:#777}
@@ -20,12 +20,12 @@ button{padding:12px 25px;margin:8px}
 <h2 id="message">Welcome to Smart BikeRack</h2>
 <div id="info" class="muted"></div>
 
-<!-- VISITOR -->
+<!-- Visitor -->
 <div id="visitorActions">
   <button id="visitorLoginBtn">Admin Login</button>
 </div>
 
-<!-- SLOT -->
+<!-- Slot -->
 <div id="slotActions" class="hidden">
   <button id="loginBtn">Login</button>
   <div class="muted">Register to create account</div>
@@ -43,6 +43,7 @@ const message = document.getElementById("message");
 const info = document.getElementById("info");
 const visitorActions = document.getElementById("visitorActions");
 const slotActions = document.getElementById("slotActions");
+const loginBtn = document.getElementById("loginBtn");
 
 /* ================= LOAD ================= */
 window.onload = async () => {
@@ -51,7 +52,7 @@ window.onload = async () => {
   const device = params.get("device");
   const slot = parseInt(params.get("slot"));
 
-  /* visitor */
+  /* visitor mode */
   if(!device || !slot){
     visitorActions.classList.remove("hidden");
     return;
@@ -63,7 +64,7 @@ window.onload = async () => {
   info.textContent = `Device: ${device} | Slot: ${slot}`;
 
   /* block if occupied */
-  const { data } = await client
+  const { data: active } = await client
     .from("rack_sessions")
     .select("id")
     .eq("device_uuid", device)
@@ -71,16 +72,19 @@ window.onload = async () => {
     .eq("status", 1)
     .maybeSingle();
 
-  if(data){
+  if(active){
     message.textContent = "Slot currently occupied";
     message.classList.add("error");
     slotActions.classList.add("hidden");
+    return;
   }
 
-  /* LOGIN BUTTON (REAL LOGIC) */
-  document.getElementById("loginBtn").onclick = async () => {
+  /* ================= LOGIN BUTTON ================= */
+  loginBtn.onclick = async () => {
 
-    /* create handshake row */
+    loginBtn.disabled = true;
+    message.textContent = "Scanning fingerprint...";
+
     const { data: row } = await client
       .from("rack_sessions")
       .insert([{
@@ -91,28 +95,33 @@ window.onload = async () => {
       .select()
       .single();
 
-    /* poll until hardware updates */
     const poll = setInterval(async () => {
-      const { data: updated } = await client
+
+      const { data } = await client
         .from("rack_sessions")
         .select("status")
         .eq("id", row.id)
         .single();
 
-      if(updated.status === 1){
+      /* success */
+      if(data.status === 1){
         clearInterval(poll);
+        message.textContent = "Login successful. Redirecting...";
         window.location.href =
           `login.html?device=${device}&slot=${slot}&id=${row.id}`;
       }
 
-      if(updated.status === 2){
+      /* fail */
+      if(data.status === 2){
         clearInterval(poll);
-        alert("Login failed. Try again.");
+        message.textContent = "Fingerprint not recognized. Try again.";
+        loginBtn.disabled = false;
       }
+
     }, 1500);
   };
 
-  /* REGISTER */
+  /* ================= REGISTER ================= */
   document.getElementById("registerBtn").onclick = () => {
     window.location.href =
       `register.html?device=${device}&slot=${slot}`;
