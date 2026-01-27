@@ -6,7 +6,10 @@
   <title>BikeRack Slot Access</title>
 
   <!-- FIX: CDN must be SELF‑CLOSED. NEVER put JS inside this tag -->
-  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <script src="https://unpkg.com/@supabase/supabase-js@2">
+/* slot login button */
+document.getElementById("loginSlotBtn").onclick=()=>openModal("loginModal");
+</script>
 
   <style>
     body{font-family:Arial,sans-serif;text-align:center;margin-top:100px}
@@ -35,6 +38,8 @@
 </div>
 
 <div id="slotActions" class="hidden">
+  <button type="button" id="loginSlotBtn">Login</button>
+  <div class="muted">Register to create account</div>
   <button type="button" id="registerBtn">Register</button>
 </div>
 
