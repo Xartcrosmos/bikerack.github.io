@@ -47,7 +47,7 @@ const loginUserBtn = document.getElementById("loginUserBtn");
 
 
 /* =====================================================
-   ORIGINAL SESSION LOCK (UNCHANGED)
+   SESSION + LOCK LOGIC (ORIGINAL, ONLY HEARTBEAT FIXED)
 ===================================================== */
 
 window.addEventListener("load", async ()=>{
@@ -101,8 +101,23 @@ window.addEventListener("load", async ()=>{
   messageEl.textContent=`Rack Ready - Slot ${slot}`;
   slotActions.classList.remove("hidden");
 
+
   /* =====================================================
-     ✅ FIXED HEARTBEAT (UPSERT, NOT INSERT)
+     ✅ FIX #1: IMMEDIATE HEARTBEAT (NEW)
+     prevents new row on refresh
+  ===================================================== */
+  await client
+    .from("sessions")
+    .upsert({
+      device_uuid: device,
+      slot,
+      session_id: sessionId,
+      last_seen: Math.floor(Date.now()/1000)
+    }, { onConflict: 'session_id' });
+
+
+  /* =====================================================
+     ✅ FIX #2: UPSERT HEARTBEAT (NO FLOOD)
   ===================================================== */
   setInterval(async()=>{
     await client
@@ -114,7 +129,7 @@ window.addEventListener("load", async ()=>{
         last_seen: Math.floor(Date.now()/1000)
       }, { onConflict: 'session_id' });
   },15000);
-  /* ===================================================== */
+
 
   registerBtn.onclick=()=>{
     window.location.href=`register.html?device=${device}&slot=${slot}`;
