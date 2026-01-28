@@ -47,7 +47,7 @@ const loginUserBtn = document.getElementById("loginUserBtn");
 
 
 /* =====================================================
-   SESSION + LOCK LOGIC (ORIGINAL, ONLY HEARTBEAT FIXED)
+   ORIGINAL SESSION LOCK (UNCHANGED)
 ===================================================== */
 
 window.addEventListener("load", async ()=>{
@@ -83,6 +83,14 @@ window.addEventListener("load", async ()=>{
   if(!sessionId){
     sessionId = crypto.randomUUID();
     localStorage.setItem("session_id", sessionId);
+
+    /* ✅ ONLY INSERT ONCE (first time only) */
+    await client.from("sessions").insert([{
+      device_uuid: device,
+      slot,
+      session_id: sessionId,
+      last_seen: Math.floor(Date.now()/1000)
+    }]);
   }
 
   const { data: allowed } = await client.rpc("try_acquire_lock", {
@@ -101,35 +109,18 @@ window.addEventListener("load", async ()=>{
   messageEl.textContent=`Rack Ready - Slot ${slot}`;
   slotActions.classList.remove("hidden");
 
-
   /* =====================================================
-     ✅ FIX #1: IMMEDIATE HEARTBEAT (NEW)
-     prevents new row on refresh
-  ===================================================== */
-  await client
-    .from("sessions")
-    .upsert({
-      device_uuid: device,
-      slot,
-      session_id: sessionId,
-      last_seen: Math.floor(Date.now()/1000)
-    }, { onConflict: 'session_id' });
-
-
-  /* =====================================================
-     ✅ FIX #2: UPSERT HEARTBEAT (NO FLOOD)
+     ✅ FIXED HEARTBEAT — UPDATE ONLY (NO INSERT/UPSERT)
   ===================================================== */
   setInterval(async()=>{
     await client
       .from("sessions")
-      .upsert({
-        device_uuid: device,
-        slot,
-        session_id: sessionId,
+      .update({
         last_seen: Math.floor(Date.now()/1000)
-      }, { onConflict: 'session_id' });
+      })
+      .eq("session_id", sessionId);
   },15000);
-
+  /* ===================================================== */
 
   registerBtn.onclick=()=>{
     window.location.href=`register.html?device=${device}&slot=${slot}`;
