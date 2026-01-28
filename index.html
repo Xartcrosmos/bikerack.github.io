@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>BikeRack Slot Access</title>
 
-<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<script src="https://unpkg.com"></script>
 
 <style>
 body{font-family:Arial;text-align:center;margin-top:100px}
@@ -78,23 +78,27 @@ window.addEventListener("load", async ()=>{
   sessionKey = `session_${device}_${slot}`;
   sessionId = localStorage.getItem(sessionKey);
 
+  // We look for the MOST RECENT session for this slot
   const { data: active } = await client
     .from("sessions")
     .select("session_id,last_seen")
     .eq("device_uuid", device)
     .eq("slot", slot)
-    .gt("last_seen", now()-60)
+    .order('last_seen', { ascending: false })
     .limit(1);
 
-  if(active && active.length){
+  // If the latest row exists AND it was seen within the last 60s
+  if(active && active.length && (now() - active[0].last_seen < 60)){
+    // If it's not our current browser session, block it
     if(active[0].session_id !== sessionId){
       showError("Slot is in use.");
       return;
     }
   }
   else{
-    /* ========= STEP 3: CREATE NEW SESSION ========= */
-    // The expired row is now ignored by Step 2 and left in the DB as a log.
+    /* ========= STEP 3: CREATE NEW SESSION (LOGGING) ========= */
+    // No delete here. We just add a new row. 
+    // Since 'id' is our primary key, this will always succeed.
     sessionId = crypto.randomUUID();
 
     const { error } = await client.from("sessions").insert([{
@@ -105,6 +109,7 @@ window.addEventListener("load", async ()=>{
     }]);
 
     if(error){
+      console.error(error);
       showError("Slot is in use.");
       return;
     }
@@ -114,6 +119,7 @@ window.addEventListener("load", async ()=>{
 
   /* ========= ALLOW ========= */
   messageEl.textContent = `Rack Ready - Slot ${slot}`;
+  messageEl.className = "";
   slotActions.classList.remove("hidden");
 
   /* ========= HEARTBEAT ========= */
