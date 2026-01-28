@@ -101,14 +101,14 @@ window.addEventListener("load", async ()=>{
     // If it's ours, we proceed to heartbeat
   } else {
     /* ========= STEP 3: UPSERT SESSION ========= */
-    const { error } = await client
-      .from("sessions")
-      .upsert({
-        device_uuid: device,
-        slot: slot,
-        session_id: sessionId,
-        last_seen: now()
-      }, { onConflict: 'device_uuid, slot' });
+      const { error } = await client
+        .from("sessions")
+        .upsert([{ // <--- MUST be an array
+          device_uuid: device,
+          slot: slot,
+          session_id: sessionId,
+          last_seen: now()
+        }], { onConflict: 'device_uuid, slot' });
 
     if (error) {
       console.error("Upsert Error:", error.message);
