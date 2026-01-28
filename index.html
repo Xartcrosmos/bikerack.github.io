@@ -123,15 +123,23 @@ window.addEventListener("load", async ()=>{
   slotActions.classList.remove("hidden");
 
   /* ========= HEARTBEAT ========= */
-  heartbeat = setInterval(()=>{
-    client.from("sessions")
+  const runHeartbeat = async () => {
+    const { error } = await client
+      .from("sessions")
       .update({ last_seen: now() })
       .eq("session_id", sessionId);
-  },15000);
+    
+    if (error) console.error("Heartbeat Failed:", error.message);
+    else console.log("Heartbeat Sync: " + new Date().toLocaleTimeString());
+  };
+
+  // Run once immediately on load, then every 15s
+  runHeartbeat(); 
+  heartbeat = setInterval(runHeartbeat, 15000);
+
 
 });
-
-
+  
 /* ========= RELEASE ========= */
 releaseBtn.onclick = async ()=>{
   stopHeartbeat();
