@@ -39,19 +39,31 @@ const infoEl = document.getElementById("info");
 const slotActions = document.getElementById("slotActions");
 const releaseBtn = document.getElementById("releaseBtn");
 
+/* ========= STATE ========= */
 let heartbeat = null;
 let sessionId = null;
 let sessionKey = null;
 
 const now = () => Math.floor(Date.now()/1000);
-const showError = (m)=>{messageEl.textContent=m;messageEl.className="error";};
-const stopHeartbeat = ()=>{ if(heartbeat) clearInterval(heartbeat); };
 
+const showError = (m)=>{
+  messageEl.textContent = m;
+  messageEl.className = "error";
+};
+
+const stopHeartbeat = ()=>{
+  if(heartbeat){
+    clearInterval(heartbeat);
+    heartbeat = null;
+  }
+};
+
+/* ========= MAIN ========= */
 window.addEventListener("load", async ()=>{
 
   const params = new URLSearchParams(location.search);
   const device = params.get("device");
-  const slot = parseInt(params.get("slot"),10);
+  const slot   = parseInt(params.get("slot"),10);
 
   if(!device || Number.isNaN(slot)){
     showError("Invalid QR.");
@@ -59,6 +71,9 @@ window.addEventListener("load", async ()=>{
   }
 
   infoEl.textContent = `Device: ${device} | Slot: ${slot}`;
+
+  sessionKey = `session_${device}_${slot}`;
+  sessionId  = localStorage.getItem(sessionKey);
 
   /* ========= STEP 1: PHYSICAL OCCUPIED ========= */
   const { data: rack } = await client
@@ -69,7 +84,7 @@ window.addEventListener("load", async ()=>{
     .eq("status", 1)
     .limit(1);
 
-  if(rack.length){
+  if(rack && rack.length){
     showError("Slot is occupied.");
     return;
   }
@@ -80,20 +95,18 @@ window.addEventListener("load", async ()=>{
     .select("session_id,last_seen")
     .eq("device_uuid", device)
     .eq("slot", slot)
-    .gt("last_seen", now()-60)
+    .gt("last_seen", now()-60)   // still active
     .limit(1);
 
-  sessionKey = `session_${device}_${slot}`;
-  sessionId = localStorage.getItem(sessionKey);
-
-  if(active.length){
+  if(active && active.length){
+    // someone owns it
     if(active[0].session_id !== sessionId){
       showError("Slot is in use.");
       return;
     }
   }
   else{
-    /* ========= STEP 3: CREATE NEW SESSION ========= */
+    // free or expired → claim slot
     sessionId = crypto.randomUUID();
 
     const { error } = await client.from("sessions").insert([{
@@ -117,7 +130,8 @@ window.addEventListener("load", async ()=>{
 
   /* ========= HEARTBEAT ========= */
   heartbeat = setInterval(()=>{
-    client.from("sessions")
+    client
+      .from("sessions")
       .update({ last_seen: now() })
       .eq("session_id", sessionId);
   },15000);
@@ -136,7 +150,7 @@ releaseBtn.onclick = async ()=>{
 
   localStorage.removeItem(sessionKey);
 
-  messageEl.textContent="Slot Released ✔";
+  messageEl.textContent = "Slot Released ✔";
   slotActions.classList.add("hidden");
 };
 
