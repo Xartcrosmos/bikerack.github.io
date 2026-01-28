@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>BikeRack Slot Access</title>
 
-<script src="https://unpkg.com"></script>
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 
 <style>
 body{font-family:Arial;text-align:center;margin-top:100px}
@@ -29,7 +29,7 @@ button{padding:12px 25px;margin:8px;font-size:16px;cursor:pointer}
 <script>
 /* ========= CONFIG ========= */
 const SUPABASE_URL = "https://lguyiavotyrxdlyhsvmz.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxndXlpYXZvdHlyeDRseWhzdm16Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkxNzQ0MjQsImV4cCI6MjA4NDc1MDQyNH0.f1hT0B68mv2lxVsQldk3ABx_0yBBUK2t1fcRHWGhmyM";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxndXlpYXZvdHlyeGRseWhzdm16Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkxNzQ0MjQsImV4cCI6MjA4NDc1MDQyNH0.f1hT0B68mv2lxVsQldk3ABx_0yBBUK2t1fcRHWGhmyM";
 
 const client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -69,12 +69,13 @@ window.addEventListener("load", async ()=>{
     .eq("status", 1)
     .limit(1);
 
-  if(rack && rack.length){
+  if(rack.length){
     showError("Slot is occupied.");
     return;
   }
 
   /* ========= STEP 2: ACTIVE SESSION CHECK ========= */
+  // MOVED: Get local ID first so we can compare it to the DB correctly
   sessionKey = `session_${device}_${slot}`;
   sessionId = localStorage.getItem(sessionKey);
 
@@ -83,23 +84,19 @@ window.addEventListener("load", async ()=>{
     .select("session_id,last_seen")
     .eq("device_uuid", device)
     .eq("slot", slot)
+    .gt("last_seen", now()-60)
     .limit(1);
 
-  // LOGIC: If a record exists AND it was seen less than 60s ago
-  if(active && active.length && (now() - active[0].last_seen < 60)){
-    // If it's not my session from this browser, block it.
+  if(active.length){
+    // Compare string IDs correctly
     if(active[0].session_id !== sessionId){
       showError("Slot is in use.");
       return;
     }
-  } 
-  else {
+  }
+  else{
     /* ========= STEP 3: CREATE NEW SESSION ========= */
-    // If we are here, it means either:
-    // 1. No session exists
-    // 2. The session exists but is older than 60s (expired)
-    
-    // Clear out any expired record for this slot first to avoid insert errors
+    // FIX: Clear the old expired row from DB before inserting a new one
     await client.from("sessions").delete().eq("device_uuid", device).eq("slot", slot);
 
     sessionId = crypto.randomUUID();
