@@ -5,127 +5,83 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>BikeRack Slot Access</title>
 
-  <!-- Supabase -->
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      text-align: center;
-      margin-top: 100px;
-    }
-
-    button {
-      padding: 12px 25px;
-      margin: 8px;
-      font-size: 16px;
-      cursor: pointer;
-    }
-
-    .hidden { display: none; }
-    .error { color: red; }
-    .muted { color: #777; font-size: 14px; }
+    body{font-family:Arial;text-align:center;margin-top:100px}
+    button{padding:12px 25px;margin:8px;font-size:16px;cursor:pointer}
+    .hidden{display:none}
+    .error{color:red}
+    .muted{color:#777;font-size:14px}
   </style>
 </head>
 <body>
 
-  <h2 id="message">Welcome to Smart BikeRack</h2>
-  <div id="info" class="muted"></div>
+<h2 id="message">Welcome to Smart BikeRack</h2>
+<div id="info" class="muted"></div>
 
-  <!-- Visitor (no QR scanned) -->
-  <div id="visitorActions">
-    <button id="visitorLoginBtn">Admin Login</button>
-  </div>
+<div id="slotActions" class="hidden">
+  <button id="registerBtn">Register</button>
+  <button id="loginUserBtn">Login</button>
+</div>
 
-  <!-- Slot user (QR scanned) -->
-  <div id="slotActions" class="hidden">
-    <button id="registerBtn">Register</button>
-  </div>
+<script>
+const SUPABASE_URL = "https://lguyiavotyrxdlyhsvmz.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxndXlpYXZvdHlyeGRseWhzdm16Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkxNzQ0MjQsImV4cCI6MjA4NDc1MDQyNH0.f1hT0B68mv2lxVsQldk3ABx_0yBBUK2t1fcRHWGhmyM";
 
-  <script>
-    const SUPABASE_URL = "https://lguyiavotyrxdlyhsvmz.supabase.co";
-    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxndXlpYXZvdHlyeGRseWhzdm16Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkxNzQ0MjQsImV4cCI6MjA4NDc1MDQyNH0.f1hT0B68mv2lxVsQldk3ABx_0yBBUK2t1fcRHWGhmyM";
+const client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-    const client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const messageEl = document.getElementById("message");
+const infoEl = document.getElementById("info");
+const slotActions = document.getElementById("slotActions");
+const registerBtn = document.getElementById("registerBtn");
+const loginUserBtn = document.getElementById("loginUserBtn");
 
-    const messageEl = document.getElementById("message");
-    const infoEl = document.getElementById("info");
+window.addEventListener("load", async ()=>{
 
-    const visitorActions = document.getElementById("visitorActions");
-    const slotActions = document.getElementById("slotActions");
+  const params = new URLSearchParams(location.search);
+  const device = params.get("device");
+  const slot   = parseInt(params.get("slot"),10);
 
-    window.onload = async () => {
+  if(!device || !slot){
+    messageEl.textContent="Scan QR first.";
+    return;
+  }
 
-      const params = new URLSearchParams(window.location.search);
-      const device = params.get("device");
-      const slot = parseInt(params.get("slot"));
+  infoEl.textContent=`Device: ${device} | Slot: ${slot}`;
 
-      /* =====================================
-         POV 1: Visitor (no QR)
-         just show admin login
-      ===================================== */
-      if (!device || !slot) {
-        messageEl.textContent = "Welcome! Please scan a QR code at the rack to register or use a slot.";
-        visitorActions.classList.remove("hidden");
+  const key = `session_${device}_${slot}`;
+  let sessionId = localStorage.getItem(key);
 
-        document.getElementById("visitorLoginBtn").onclick = () => {
-          window.location.href = "login_dashboard.html";
-        };
-        return;
-      }
+  /* ===== CREATE SESSION ONLY IF NOT EXIST ===== */
+  if(!sessionId){
 
+    sessionId = crypto.randomUUID();
+    localStorage.setItem(key, sessionId);
 
-      /* =====================================
-         POV 2: Slot user (QR scanned)
-      ===================================== */
-      visitorActions.classList.add("hidden");
-      infoEl.textContent = `Device: ${device} | Slot: ${slot}`;
+    await client.from("sessions").insert([{
+      device_uuid: device,
+      slot,
+      session_id: sessionId,
+      last_seen: Math.floor(Date.now()/1000)
+    }]);
+  }
 
-      let sessionId = localStorage.getItem("session_id");
-      if (!sessionId) {
-        sessionId = crypto.randomUUID();
-        localStorage.setItem("session_id", sessionId);
-      }
+  messageEl.textContent=`Rack Ready - Slot ${slot}`;
+  slotActions.classList.remove("hidden");
 
-      try {
-        const { data: allowed, error } = await client.rpc("try_acquire_lock", {
-          target_device: device,
-          target_slot: slot,
-          new_session_id: sessionId,
-          timeout_seconds: 60
-        });
+  /* ===== HEARTBEAT UPDATE ONLY ===== */
+  setInterval(async()=>{
+    await client
+      .from("sessions")
+      .update({
+        last_seen: Math.floor(Date.now()/1000)
+      })
+      .eq("session_id", sessionId);
+  },15000);
 
-        if (error) throw error;
-
-        if (!allowed) {
-          messageEl.textContent = "Slot currently in use. Try again later.";
-          messageEl.classList.add("error");
-          return;
-        }
-
-        messageEl.textContent = `Rack Ready — Slot ${slot}`;
-        slotActions.classList.remove("hidden");
-
-        setInterval(async () => {
-          await client.from("sessions").insert([{
-            device_uuid: device,
-            slot: slot,
-            session_id: sessionId,
-            last_seen: Math.floor(Date.now() / 1000)
-          }]);
-        }, 15000);
-
-      } catch (err) {
-        console.error(err);
-        messageEl.textContent = "Connection error.";
-        messageEl.classList.add("error");
-      }
-
-      document.getElementById("registerBtn").onclick = () => {
-        window.location.href = `registration.html?device=${device}&slot=${slot}`;
-      };
-    };
-  </script>
+});
+</script>
 
 </body>
 </html>
