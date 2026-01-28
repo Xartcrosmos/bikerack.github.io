@@ -42,52 +42,6 @@
   <button id="loginUserBtn">Login</button>
 </div>
 
-<!-- CLAIM -->
-<div id="claimModal" class="modal hidden">
-  <div class="modal-box">
-    <h3>Claim Device</h3>
-    <div class="modal-msg muted"></div>
-    <input id="uuidInput" placeholder="Device UUID" />
-    <input id="otcInput" placeholder="OTC Code" />
-    <button id="claimBtn">Next</button>
-    <button id="cancelClaim">Cancel</button>
-  </div>
-</div>
-
-<!-- CREATE -->
-<div id="createModal" class="modal hidden">
-  <div class="modal-box">
-    <h3>Create Admin Account</h3>
-    <div class="modal-msg muted"></div>
-    <input id="emailInput" placeholder="Email" />
-    <input id="passInput" type="password" placeholder="Password" />
-    <button id="createBtn">Register</button>
-    <button id="cancelCreate">Cancel</button>
-  </div>
-</div>
-
-<!-- OTP -->
-<div id="otpModal" class="modal hidden">
-  <div class="modal-box">
-    <h3>Email Verification</h3>
-    <div class="modal-msg muted"></div>
-    <input id="otpInput" placeholder="Enter OTP" />
-    <button id="otpVerifyBtn">Verify</button>
-  </div>
-</div>
-
-<!-- LOGIN -->
-<div id="loginModal" class="modal hidden">
-  <div class="modal-box">
-    <h3>Admin Login</h3>
-    <div class="modal-msg muted"></div>
-    <input id="loginEmail" placeholder="Email" />
-    <input id="loginPass" type="password" placeholder="Password" />
-    <button id="loginBtn">Login</button>
-    <button id="cancelLogin">Cancel</button>
-  </div>
-</div>
-
 <script>
 /* ================= CONFIG ================= */
 
@@ -102,15 +56,10 @@ const messageEl = document.getElementById("message");
 const infoEl = document.getElementById("info");
 const visitorActions = document.getElementById("visitorActions");
 const slotActions = document.getElementById("slotActions");
+const registerBtn = document.getElementById("registerBtn");
+const loginUserBtn = document.getElementById("loginUserBtn");
 
-function openModal(id){document.getElementById(id).classList.remove("hidden");}
-function closeModal(id){document.getElementById(id).classList.add("hidden");}
-
-visitorLoginBtn.onclick=()=>openModal("loginModal");
-claimLink.onclick=()=>openModal("claimModal");
-cancelClaim.onclick=()=>closeModal("claimModal");
-cancelCreate.onclick=()=>closeModal("createModal");
-cancelLogin.onclick=()=>closeModal("loginModal");
+visitorLoginBtn.onclick = () => location.href = "admin.html";
 
 
 /* ================= INIT ================= */
@@ -129,7 +78,7 @@ async function initPage(){
   visitorActions.classList.add("hidden");
   infoEl.textContent=`Device: ${device} | Slot: ${slot}`;
 
-  /* ✅ block if occupied */
+  /* block if occupied */
   const { data: active } = await client
     .from("rack_sessions")
     .select("id")
@@ -144,55 +93,24 @@ async function initPage(){
     return;
   }
 
-  let sessionId=localStorage.getItem("session_id");
-  if(!sessionId){
-    sessionId=crypto.randomUUID();
-    localStorage.setItem("session_id",sessionId);
-  }
-
-  const {data:allowed}=await client.rpc("try_acquire_lock",{
-    target_device:device,
-    target_slot:slot,
-    new_session_id:sessionId,
-    timeout_seconds:60
-  });
-
-  if(!allowed){
-    messageEl.textContent="Slot currently in use.";
-    messageEl.classList.add("error");
-    return;
-  }
-
   messageEl.textContent=`Rack Ready - Slot ${slot}`;
   slotActions.classList.remove("hidden");
-
-  setInterval(async()=>{
-    await client.from("sessions").insert([{
-      device_uuid:device,
-      slot,
-      session_id:sessionId,
-      last_seen:Math.floor(Date.now()/1000)
-    }]);
-  },15000);
 
   registerBtn.onclick=()=>{
     location.href=`register.html?device=${device}&slot=${slot}`;
   };
+
+  loginUserBtn.onclick=()=>startLogin(device,slot);
 }
 
 window.addEventListener("load",()=>initPage());
 
 
-/* ================= LOGIN FEATURE ================= */
+/* ================= LOGIN FLOW ================= */
 
-const loginUserBtn=document.getElementById("loginUserBtn");
 let loginPollTimer=null;
 
-loginUserBtn.onclick=async()=>{
-
-  const params=new URLSearchParams(location.search);
-  const device=params.get("device");
-  const slot=parseInt(params.get("slot"));
+async function startLogin(device,slot){
 
   messageEl.textContent="Please scan fingerprint to login...";
 
@@ -215,29 +133,53 @@ loginUserBtn.onclick=async()=>{
   }
 
   pollLogin(data.id,device,slot);
-};
+}
+
 
 async function pollLogin(id,device,slot){
 
   const {data}=await client
     .from("rack_sessions")
-    .select("status,user_id") /* ✅ get user_id */
+    .select("status,user_id")
     .eq("id",id)
     .single();
 
+  /* waiting */
   if(data.status===0){
     loginPollTimer=setTimeout(()=>pollLogin(id,device,slot),2000);
     return;
   }
 
+  /* success */
   if(data.status===1){
     clearTimeout(loginPollTimer);
     messageEl.textContent="Login successful. Redirecting...";
-
-    /* ✅ redirect with user_id */
     setTimeout(()=>{
       location.href=`login.html?device=${device}&slot=${slot}&id=${data.user_id}`;
     },1200);
+    return;
+  }
+
+  /* retry */
+  if(data.status===2){
+    clearTimeout(loginPollTimer);
+
+    alert("Fingerprint not recognized. Please try again.");
+
+    await client
+      .from("rack_sessions")
+      .update({ status:0 })
+      .eq("id",id);
+
+    pollLogin(id,device,slot);
+    return;
+  }
+
+  /* ended */
+  if(data.status===3){
+    clearTimeout(loginPollTimer);
+    messageEl.textContent="Session ended.";
+    return;
   }
 }
 </script>
