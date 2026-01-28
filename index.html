@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>BikeRack Slot Access</title>
 
-  <!-- Supabase -->
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 
   <style>
@@ -45,20 +44,15 @@ const slotActions = document.getElementById("slotActions");
 
 const registerBtn = document.getElementById("registerBtn");
 const loginUserBtn = document.getElementById("loginUserBtn");
-const visitorLoginBtn = document.getElementById("visitorLoginBtn");
 
 
 /* =====================================================
-   ORIGINAL SESSION LOCK + HEARTBEAT (FIXED SAFE)
+   SESSION LOGIC (PROPER VALIDATION VERSION)
 ===================================================== */
 
 window.addEventListener("load", async ()=>{
 
-  visitorLoginBtn.onclick = () => {
-    window.location.href = "admin.html";
-  };
-
-  const params = new URLSearchParams(window.location.search);
+  const params = new URLSearchParams(location.search);
   const device = params.get("device");
   const slot   = parseInt(params.get("slot"),10);
 
@@ -85,22 +79,48 @@ window.addEventListener("load", async ()=>{
     return;
   }
 
-  /* ✅ session per slot (FIX) */
+  /* ===============================
+     CORRECT SESSION FLOW
+  =============================== */
+
   const key = `session_${device}_${slot}`;
   let sessionId = localStorage.getItem(key);
+  let now = Math.floor(Date.now()/1000);
+  let valid = false;
 
-  if(!sessionId){
+  if(sessionId){
+
+    const { data: existing } = await client
+      .from("sessions")
+      .select("last_seen")
+      .eq("session_id", sessionId)
+      .maybeSingle();
+
+    if(existing){
+      const age = now - existing.last_seen;
+
+      if(age <= 60){
+        valid = true; // reuse session
+      }
+    }
+  }
+
+  /* create new only if invalid */
+  if(!valid){
     sessionId = crypto.randomUUID();
     localStorage.setItem(key, sessionId);
 
-    /* insert once */
     await client.from("sessions").insert([{
       device_uuid: device,
       slot,
       session_id: sessionId,
-      last_seen: Math.floor(Date.now()/1000)
+      last_seen: now
     }]);
   }
+
+  /* ===============================
+     ACQUIRE LOCK
+  =============================== */
 
   const { data: allowed } = await client.rpc("try_acquire_lock", {
     target_device: device,
@@ -118,7 +138,10 @@ window.addEventListener("load", async ()=>{
   messageEl.textContent=`Rack Ready - Slot ${slot}`;
   slotActions.classList.remove("hidden");
 
-  /* ✅ heartbeat FIXED (update only) */
+  /* ===============================
+     HEARTBEAT (UPDATE ONLY)
+  =============================== */
+
   setInterval(async()=>{
     await client
       .from("sessions")
@@ -127,7 +150,7 @@ window.addEventListener("load", async ()=>{
   },15000);
 
   registerBtn.onclick=()=>{
-    window.location.href=`register.html?device=${device}&slot=${slot}`;
+    location.href=`register.html?device=${device}&slot=${slot}`;
   };
 
   loginUserBtn.onclick=()=>startLogin(device,slot);
@@ -181,7 +204,7 @@ async function pollLogin(id,device,slot){
 
   if(data.status===1){
     clearTimeout(loginPollTimer);
-    window.location.href=`login.html?device=${device}&slot=${slot}&id=${data.user_id}`;
+    location.href=`login.html?device=${device}&slot=${slot}&id=${data.user_id}`;
     return;
   }
 
