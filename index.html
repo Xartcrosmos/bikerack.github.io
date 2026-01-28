@@ -1,165 +1,165 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BikeRack Slot Access</title>
-
-<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
-
-<style>
-body{font-family:Arial;text-align:center;margin-top:100px}
-button{padding:12px 25px;margin:8px;font-size:16px;cursor:pointer}
-.hidden{display:none}
-.error{color:red}
-.muted{color:#777;font-size:14px}
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BikeRack Slot Access</title>
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <style>
+    body{font-family:Arial;text-align:center;margin-top:100px}
+    button{padding:12px 25px;margin:8px;font-size:16px;cursor:pointer}
+    .hidden{display:none}
+    .error{color:red}
+    .muted{color:#777;font-size:14px}
+  </style>
 </head>
 <body>
 
 <h2 id="message">Welcome to Smart BikeRack</h2>
 <div id="info" class="muted"></div>
 
+<!-- VISITOR MODE UI -->
+<div id="visitorActions">
+  <p>Please scan a QR code to use a slot.</p>
+  <button id="adminLoginBtn">Admin Login</button>
+</div>
+
+<!-- SLOT MODE UI -->
 <div id="slotActions" class="hidden">
   <button id="registerBtn">Register</button>
   <button id="loginUserBtn">Login</button>
-  <button id="releaseBtn">Release Slot</button>
 </div>
 
 <script>
-/* ========= CONFIG ========= */
+/* ================= CONFIG ================= */
 const SUPABASE_URL = "https://lguyiavotyrxdlyhsvmz.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxndXlpYXZvdHlyeGRseWhzdm16Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkxNzQ0MjQsImV4cCI6MjA4NDc1MDQyNH0.f1hT0B68mv2lxVsQldk3ABx_0yBBUK2t1fcRHWGhmyM";
-
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxndXlpYXZvdHlyeDRseWhzdm16Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkxNzQ0MjQsImV4cCI6MjA4NDc1MDQyNH0.f1hT0B68mv2lxVsQldk3ABx_0yBBUK2t1fcRHWGhmyM";
 const client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-/* ========= ELEMENTS ========= */
 const messageEl = document.getElementById("message");
 const infoEl = document.getElementById("info");
+const visitorActions = document.getElementById("visitorActions");
 const slotActions = document.getElementById("slotActions");
-const releaseBtn = document.getElementById("releaseBtn");
+const registerBtn = document.getElementById("registerBtn");
+const loginUserBtn = document.getElementById("loginUserBtn");
 
 let heartbeat = null;
 let sessionId = null;
 let sessionKey = null;
 
 const now = () => Math.floor(Date.now()/1000);
-const showError = (m)=>{messageEl.textContent=m;messageEl.className="error";};
-const stopHeartbeat = ()=>{ if(heartbeat) clearInterval(heartbeat); };
 
-window.addEventListener("load", async ()=>{
-
-  const params = new URLSearchParams(location.search);
+window.addEventListener("load", async () => {
+  const params = new URLSearchParams(window.location.search);
   const device = params.get("device");
-  const slot = parseInt(params.get("slot"),10);
+  const slot = parseInt(params.get("slot"), 10);
 
-  if(!device || Number.isNaN(slot)){
-    showError("Invalid QR.");
-    return;
+  // 1. VISITOR CHECK
+  if (!device || isNaN(slot)) {
+    return; // Stay in Visitor Mode (showing visitorActions)
   }
 
+  // 2. INITIALIZE SLOT MODE
+  visitorActions.classList.add("hidden");
   infoEl.textContent = `Device: ${device} | Slot: ${slot}`;
+  sessionKey = `session_${device}_${slot}`;
+  sessionId = localStorage.getItem(sessionKey);
 
-    /* ========= STEP 1: PHYSICAL OCCUPIED ========= */
-  const { data: rack, error: rackError } = await client
+  /* ========= PHYSICAL OCCUPIED CHECK ========= */
+  const { data: rack } = await client
     .from("rack_sessions")
     .select("status")
     .eq("device_uuid", device)
     .eq("slot", slot)
     .eq("status", 1)
-    .maybeSingle(); // Better for checking existence
-
-  if (rackError) {
-    console.error("Database Error:", rackError.message);
-    // If the error is 'invalid input syntax for type uuid', your device ID is wrong
-  }
+    .maybeSingle();
 
   if (rack) {
-    showError("Slot is physically occupied.");
+    messageEl.textContent = "Slot is occupied.";
+    messageEl.className = "error";
     return;
   }
 
-    /* ========= STEP 2: ACTIVE SESSION CHECK ========= */
-  sessionKey = `session_${device}_${slot}`;
-  sessionId = localStorage.getItem(sessionKey);
-
-  // Check if there is a session for THIS specific device and slot
+  /* ========= SESSION LOCK LOGIC (UPSERT) ========= */
   const { data: active } = await client
     .from("sessions")
-    .select("session_id, last_seen")
-    .eq("device_uuid", device) // MUST match current device
-    .eq("slot", slot)        // MUST match current slot
+    .select("session_id")
+    .eq("device_uuid", device)
+    .eq("slot", slot)
     .gt("last_seen", now() - 60)
-    .limit(1);
+    .maybeSingle();
 
-  if (active.length) {
-    // If a session exists and it's NOT the one stored in this browser
-    if (active[0].session_id !== sessionId) {
-      showError("Slot is in use by another user.");
-      return;
-    }
-    // If it IS our session, we just continue to the heartbeat
-  } else {
-    /* ========= STEP 3: CREATE OR UPDATE SESSION (UPSERT) ========= */
-    sessionId = crypto.randomUUID(); // Generate a new ID every time we land here
-
-    const sessionData = {
-      device_uuid: device,
-      slot: slot,
-      session_id: sessionId,
-      last_seen: now()
-    };
-    
-    const { error } = await client
-      .from("sessions")
-      .upsert([sessionData], { onConflict: 'device_uuid, slot' }); // Specify the conflict keys
-
-    if (error) {
-      // Use this improved console log to see the SPECIFIC error details
-      console.error("Insert/Upsert Error:", error.message, error.details); 
-      showError("Could not start session.");
-      return;
-    }
-
-    localStorage.setItem(sessionKey, sessionId);
-
+  if (active && active.session_id !== sessionId) {
+    messageEl.textContent = "Slot currently in use by another device.";
+    messageEl.className = "error";
+    return;
   }
 
-  /* ========= ALLOW ========= */
+  // No active session or it's ours? Create/Refresh it.
+  if (!sessionId) sessionId = crypto.randomUUID();
+  
+  const { error: upsertError } = await client.from("sessions").upsert([{
+    device_uuid: device,
+    slot: slot,
+    session_id: sessionId,
+    last_seen: now()
+  }], { onConflict: 'device_uuid, slot' });
+
+  if (upsertError) {
+    console.error("Lock Error:", upsertError.message);
+    messageEl.textContent = "System Error. Please try again.";
+    return;
+  }
+
+  localStorage.setItem(sessionKey, sessionId);
   messageEl.textContent = `Rack Ready - Slot ${slot}`;
   slotActions.classList.remove("hidden");
 
-  /* ========= HEARTBEAT ========= */
-  heartbeat = setInterval(()=>{
-    client.from("sessions")
-      .update({ last_seen: now() })
-      .eq("session_id", sessionId);
-  },15000);
+  // Heartbeat
+  heartbeat = setInterval(() => {
+    client.from("sessions").update({ last_seen: now() }).eq("session_id", sessionId);
+  }, 15000);
 
+  // Button Listeners
+  registerBtn.onclick = () => window.location.href = `register.html?device=${device}&slot=${slot}`;
+  loginUserBtn.onclick = () => startLogin(device, slot);
 });
 
+/* ================= LOGIN & FINGERPRINT LOGIC ================= */
+async function startLogin(device, slot) {
+  messageEl.textContent = "Please scan fingerprint to login...";
+  
+  const { data, error } = await client
+    .from("rack_sessions")
+    .insert([{
+      device_uuid: device,
+      slot: slot,
+      status: 0 // Waiting for hardware
+    }])
+    .select().single();
 
-/* ========= RELEASE ========= */
-releaseBtn.onclick = async ()=>{
-  stopHeartbeat();
+  if (error) {
+    messageEl.textContent = "Login initiation failed.";
+    return;
+  }
+  pollLogin(data.id, device, slot);
+}
 
-  await client
-    .from("sessions")
-    .delete()
-    .eq("session_id", sessionId);
+async function pollLogin(id, device, slot) {
+  const { data } = await client.from("rack_sessions").select("status, user_id").eq("id", id).single();
 
-  localStorage.removeItem(sessionKey);
-
-  messageEl.textContent="Slot Released ✔";
-  slotActions.classList.add("hidden");
-};
-
-
-/* ========= CLEANUP ========= */
-document.addEventListener("visibilitychange", ()=>{
-  if(document.hidden) stopHeartbeat();
-});
+  if (data.status === 0) {
+    setTimeout(() => pollLogin(id, device, slot), 2000);
+  } else if (data.status === 1) {
+    window.location.href = `login.html?device=${device}&slot=${slot}&id=${data.user_id}`;
+  } else if (data.status === 2) {
+    alert("Fingerprint not recognized.");
+    await client.from("rack_sessions").update({ status: 0 }).eq("id", id);
+    pollLogin(id, device, slot);
+  } else if (data.status === 3) {
+    messageEl.textContent = "Session ended.";
+  }
+}
 </script>
-
 </body>
 </html>
