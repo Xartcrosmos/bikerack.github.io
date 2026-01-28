@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>BikeRack Slot Access</title>
 
+  <!-- Supabase -->
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 
   <style>
@@ -13,13 +14,6 @@
     .hidden{display:none}
     .error{color:red}
     .muted{color:#777;font-size:14px}
-    .link{color:#2563eb;cursor:pointer;text-decoration:underline;font-size:14px}
-
-    .modal{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;justify-content:center;align-items:center}
-    .modal.hidden{display:none}
-    .modal-box{background:white;padding:20px;border-radius:10px;width:300px}
-    .modal-box input{width:90%;padding:8px;margin:6px 0}
-    .modal-msg{min-height:18px;margin-bottom:8px;font-size:13px}
   </style>
 </head>
 <body>
@@ -27,156 +21,81 @@
 <h2 id="message">Welcome to Smart BikeRack</h2>
 <div id="info" class="muted"></div>
 
-<!-- VISITOR -->
 <div id="visitorActions">
   <button id="visitorLoginBtn">Admin Login</button>
-  <div class="muted">
-    You don't have an account?
-    <span id="claimLink" class="link">Claim your BikeRack unit now.</span>
-  </div>
 </div>
 
-<!-- SLOT -->
 <div id="slotActions" class="hidden">
   <button id="registerBtn">Register</button>
   <button id="loginUserBtn">Login</button>
 </div>
 
-<!-- CLAIM -->
-<div id="claimModal" class="modal hidden">
-  <div class="modal-box">
-    <h3>Claim Device</h3>
-    <div class="modal-msg muted"></div>
-    <input id="uuidInput" placeholder="Device UUID" />
-    <input id="otcInput" placeholder="OTC Code" />
-    <button id="claimBtn">Next</button>
-    <button id="cancelClaim">Cancel</button>
-  </div>
-</div>
-
-<!-- CREATE -->
-<div id="createModal" class="modal hidden">
-  <div class="modal-box">
-    <h3>Create Admin Account</h3>
-    <div class="modal-msg muted"></div>
-    <input id="emailInput" placeholder="Email" />
-    <input id="passInput" type="password" placeholder="Password" />
-    <button id="createBtn">Register</button>
-    <button id="cancelCreate">Cancel</button>
-  </div>
-</div>
-
-<!-- OTP -->
-<div id="otpModal" class="modal hidden">
-  <div class="modal-box">
-    <h3>Email Verification</h3>
-    <div class="modal-msg muted"></div>
-    <input id="otpInput" placeholder="Enter OTP" />
-    <button id="otpVerifyBtn">Verify</button>
-  </div>
-</div>
-
-<!-- LOGIN -->
-<div id="loginModal" class="modal hidden">
-  <div class="modal-box">
-    <h3>Admin Login</h3>
-    <div class="modal-msg muted"></div>
-    <input id="loginEmail" placeholder="Email" />
-    <input id="loginPass" type="password" placeholder="Password" />
-    <button id="loginBtn">Login</button>
-    <button id="cancelLogin">Cancel</button>
-  </div>
-</div>
-
 <script>
-/* ===================================================== */
+/* ================= CONFIG ================= */
 
 const SUPABASE_URL = "https://lguyiavotyrxdlyhsvmz.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxndXlpYXZvdHlyeGRseWhzdm16Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkxNzQ0MjQsImV4cCI6MjA4NDc1MDQyNH0.f1hT0B68mv2lxVsQldk3ABx_0yBBUK2t1fcRHWGhmyM";
 
 const client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-/* elements */
 const messageEl = document.getElementById("message");
 const infoEl = document.getElementById("info");
 const visitorActions = document.getElementById("visitorActions");
 const slotActions = document.getElementById("slotActions");
 
-const visitorLoginBtn = document.getElementById("visitorLoginBtn");
-const claimLink = document.getElementById("claimLink");
 const registerBtn = document.getElementById("registerBtn");
 const loginUserBtn = document.getElementById("loginUserBtn");
 
-/* helpers */
-function openModal(id){document.getElementById(id).classList.remove("hidden");}
-function closeModal(id){document.getElementById(id).classList.add("hidden");}
-function showMsg(text,isErr){
-  const el=document.querySelector('.modal:not(.hidden) .modal-msg');
-  if(!el)return;
-  el.textContent=text;
-  el.className='modal-msg '+(isErr?'error':'muted');
-}
-
-/* visitor */
-visitorLoginBtn.onclick=()=>openModal("loginModal");
-claimLink.onclick=()=>openModal("claimModal");
-cancelClaim.onclick=()=>closeModal("claimModal");
-cancelCreate.onclick=()=>closeModal("createModal");
-cancelLogin.onclick=()=>closeModal("loginModal");
 
 /* =====================================================
-   SLOT MODE (MERGED + FIXED)
+   ORIGINAL SESSION LOCK + HEARTBEAT (UNCHANGED)
 ===================================================== */
 
-async function initPage(){
+window.addEventListener("load", async ()=>{
 
-  const params=new URLSearchParams(location.search);
-  const device=params.get("device");
-  const slot=parseInt(params.get("slot"),10);
+  const params = new URLSearchParams(window.location.search);
+  const device = params.get("device");
+  const slot   = parseInt(params.get("slot"));
 
-  if(!device||!slot){
-    messageEl.textContent="Welcome! Please scan a QR code to use a slot.";
+  if(!device || !slot){
+    messageEl.textContent = "Welcome! Please scan a QR code to use a slot.";
     return;
   }
 
   visitorActions.classList.add("hidden");
-  infoEl.textContent=`Device: ${device} | Slot: ${slot}`;
+  infoEl.textContent = `Device: ${device} | Slot: ${slot}`;
 
-  /* occupied check */
-  const {data:occupied}=await client
+  /* =====================================================
+     ✅ ADDED ONLY — OCCUPIED CHECK
+     blocks if someone already logged in
+  ===================================================== */
+  const { data: occupied } = await client
     .from("rack_sessions")
     .select("id")
-    .eq("device_uuid",device)
-    .eq("slot",slot)
-    .eq("status",1)
+    .eq("device_uuid", device)
+    .eq("slot", slot)
+    .eq("status", 1)
     .limit(1);
 
-  if(occupied&&occupied.length){
-    messageEl.textContent="Slot is occupied.";
+  if(occupied && occupied.length){
+    messageEl.textContent = "Slot is occupied.";
     messageEl.classList.add("error");
     return;
   }
+  /* ===================================================== */
 
-  const key=`session_${device}_${slot}`;
-  let sessionId=localStorage.getItem(key);
 
+  let sessionId = localStorage.getItem("session_id");
   if(!sessionId){
-    sessionId=crypto.randomUUID();
-    localStorage.setItem(key,sessionId);
-
-    await client.from("sessions").insert([{
-      device_uuid:device,
-      slot,
-      session_id:sessionId,
-      last_seen:Math.floor(Date.now()/1000)
-    }]);
+    sessionId = crypto.randomUUID();
+    localStorage.setItem("session_id", sessionId);
   }
 
-  const {data:allowed}=await client.rpc("try_acquire_lock",{
-    target_device:device,
-    target_slot:slot,
-    new_session_id:sessionId,
-    timeout_seconds:60
+  const { data: allowed } = await client.rpc("try_acquire_lock", {
+    target_device: device,
+    target_slot: slot,
+    new_session_id: sessionId,
+    timeout_seconds: 60
   });
 
   if(!allowed){
@@ -188,25 +107,26 @@ async function initPage(){
   messageEl.textContent=`Rack Ready - Slot ${slot}`;
   slotActions.classList.remove("hidden");
 
-  /* heartbeat FIXED */
+  /* heartbeat (UNCHANGED) */
   setInterval(async()=>{
-    await client
-      .from("sessions")
-      .update({last_seen:Math.floor(Date.now()/1000)})
-      .eq("session_id",sessionId);
+    await client.from("sessions").insert([{
+      device_uuid: device,
+      slot,
+      session_id: sessionId,
+      last_seen: Math.floor(Date.now()/1000)
+    }]);
   },15000);
 
   registerBtn.onclick=()=>{
-    location.href=`register.html?device=${device}&slot=${slot}`;
+    window.location.href=`register.html?device=${device}&slot=${slot}`;
   };
 
   loginUserBtn.onclick=()=>startLogin(device,slot);
-}
+});
 
-window.addEventListener("load",initPage);
 
 /* =====================================================
-   LOGIN POLLING (restored)
+   LOGIN FEATURE (ALREADY ADDED BEFORE)
 ===================================================== */
 
 let loginPollTimer=null;
@@ -215,14 +135,27 @@ async function startLogin(device,slot){
 
   messageEl.textContent="Please scan fingerprint to login...";
 
-  const {data}=await client
+  const {data,error}=await client
     .from("rack_sessions")
-    .insert([{device_uuid:device,slot,status:0}])
+    .insert([{
+      device_uuid:device,
+      slot,
+      user_id:null,
+      timein:null,
+      timeout:null,
+      status:0
+    }])
     .select()
     .single();
 
+  if(error){
+    messageEl.textContent=error.message;
+    return;
+  }
+
   pollLogin(data.id,device,slot);
 }
+
 
 async function pollLogin(id,device,slot){
 
@@ -239,7 +172,28 @@ async function pollLogin(id,device,slot){
 
   if(data.status===1){
     clearTimeout(loginPollTimer);
-    location.href=`login.html?device=${device}&slot=${slot}&id=${data.user_id}`;
+    window.location.href=`login.html?device=${device}&slot=${slot}&id=${data.user_id}`;
+    return;
+  }
+
+  if(data.status===2){
+    clearTimeout(loginPollTimer);
+
+    alert("Fingerprint not recognized. Please try again.");
+
+    await client
+      .from("rack_sessions")
+      .update({ status:0 })
+      .eq("id",id);
+
+    pollLogin(id,device,slot);
+    return;
+  }
+
+  if(data.status===3){
+    clearTimeout(loginPollTimer);
+    messageEl.textContent="Session ended.";
+    return;
   }
 }
 </script>
