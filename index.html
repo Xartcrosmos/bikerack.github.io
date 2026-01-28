@@ -60,17 +60,22 @@ window.addEventListener("load", async ()=>{
 
   infoEl.textContent = `Device: ${device} | Slot: ${slot}`;
 
-  /* ========= STEP 1: PHYSICAL OCCUPIED ========= */
-  const { data: rack } = await client
+    /* ========= STEP 1: PHYSICAL OCCUPIED ========= */
+  const { data: rack, error: rackError } = await client
     .from("rack_sessions")
     .select("status")
     .eq("device_uuid", device)
     .eq("slot", slot)
     .eq("status", 1)
-    .limit(1);
+    .maybeSingle(); // Better for checking existence
 
-  if(rack.length){
-    showError("Slot is occupied.");
+  if (rackError) {
+    console.error("Database Error:", rackError.message);
+    // If the error is 'invalid input syntax for type uuid', your device ID is wrong
+  }
+
+  if (rack) {
+    showError("Slot is physically occupied.");
     return;
   }
 
