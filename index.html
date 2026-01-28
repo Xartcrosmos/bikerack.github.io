@@ -47,7 +47,7 @@ const loginUserBtn = document.getElementById("loginUserBtn");
 
 
 /* =====================================================
-   SESSION LOGIC (PROPER VALIDATION VERSION)
+   SLOT MODE — CLEAN SESSION LOGIC (FINAL)
 ===================================================== */
 
 window.addEventListener("load", async ()=>{
@@ -79,34 +79,27 @@ window.addEventListener("load", async ()=>{
     return;
   }
 
-  /* ===============================
-     CORRECT SESSION FLOW
-  =============================== */
+  /* ================= SESSION ================= */
 
   const key = `session_${device}_${slot}`;
   let sessionId = localStorage.getItem(key);
-  let now = Math.floor(Date.now()/1000);
-  let valid = false;
+  const now = Math.floor(Date.now()/1000);
+  let reuse = false;
 
   if(sessionId){
-
-    const { data: existing } = await client
+    const { data } = await client
       .from("sessions")
       .select("last_seen")
       .eq("session_id", sessionId)
-      .maybeSingle();
+      .limit(1);   // <<< NO maybeSingle
 
-    if(existing){
-      const age = now - existing.last_seen;
-
-      if(age <= 60){
-        valid = true; // reuse session
-      }
+    if(data && data.length){
+      const age = now - data[0].last_seen;
+      if(age <= 60) reuse = true;
     }
   }
 
-  /* create new only if invalid */
-  if(!valid){
+  if(!reuse){
     sessionId = crypto.randomUUID();
     localStorage.setItem(key, sessionId);
 
@@ -118,9 +111,7 @@ window.addEventListener("load", async ()=>{
     }]);
   }
 
-  /* ===============================
-     ACQUIRE LOCK
-  =============================== */
+  /* ================= LOCK ================= */
 
   const { data: allowed } = await client.rpc("try_acquire_lock", {
     target_device: device,
@@ -138,9 +129,7 @@ window.addEventListener("load", async ()=>{
   messageEl.textContent=`Rack Ready - Slot ${slot}`;
   slotActions.classList.remove("hidden");
 
-  /* ===============================
-     HEARTBEAT (UPDATE ONLY)
-  =============================== */
+  /* ================= HEARTBEAT ================= */
 
   setInterval(async()=>{
     await client
