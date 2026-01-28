@@ -41,7 +41,7 @@ const loginUserBtn = document.getElementById("loginUserBtn");
 
 
 /* =====================================================
-   SLOT MODE — FIXED (ONLY session reuse changed)
+   SLOT MODE — SAME FILE, ONLY SESSION FIX
 ===================================================== */
 
 window.addEventListener("load", async ()=>{
@@ -58,7 +58,7 @@ window.addEventListener("load", async ()=>{
   infoEl.textContent=`Device: ${device} | Slot: ${slot}`;
 
   /* =================================================
-     ✅ ALWAYS REUSE SAME SESSION (THIS IS THE ONLY FIX)
+     ✅ FIX: GET SAME SESSION FIRST (reuse)
   ================================================= */
 
   const key = `session_${device}_${slot}`;
@@ -67,13 +67,6 @@ window.addEventListener("load", async ()=>{
   if(!sessionId){
     sessionId = crypto.randomUUID();
     localStorage.setItem(key, sessionId);
-
-    await client.from("sessions").insert([{
-      device_uuid: device,
-      slot,
-      session_id: sessionId,
-      last_seen: Math.floor(Date.now()/1000)
-    }]);
   }
 
   /* =================================================
@@ -91,6 +84,25 @@ window.addEventListener("load", async ()=>{
     messageEl.textContent="Slot is occupied.";
     messageEl.classList.add("error");
     return;
+  }
+
+  /* =================================================
+     insert only if first time
+  ================================================= */
+
+  const { data } = await client
+    .from("sessions")
+    .select("id")
+    .eq("session_id", sessionId)
+    .limit(1);
+
+  if(!data.length){
+    await client.from("sessions").insert([{
+      device_uuid: device,
+      slot,
+      session_id: sessionId,
+      last_seen: Math.floor(Date.now()/1000)
+    }]);
   }
 
   /* ================================================= */
@@ -117,7 +129,7 @@ window.addEventListener("load", async ()=>{
 
 
 /* =====================================================
-   LOGIN (UNCHANGED — your original code kept)
+   LOGIN (UNCHANGED — 100% same as yours)
 ===================================================== */
 
 let loginPollTimer=null;
