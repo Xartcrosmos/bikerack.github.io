@@ -45,17 +45,22 @@ const slotActions = document.getElementById("slotActions");
 
 const registerBtn = document.getElementById("registerBtn");
 const loginUserBtn = document.getElementById("loginUserBtn");
+const visitorLoginBtn = document.getElementById("visitorLoginBtn");
 
 
 /* =====================================================
-   ORIGINAL SESSION LOCK + HEARTBEAT (UNCHANGED)
+   ORIGINAL SESSION LOCK + HEARTBEAT (FIXED SAFE)
 ===================================================== */
 
 window.addEventListener("load", async ()=>{
 
+  visitorLoginBtn.onclick = () => {
+    window.location.href = "admin.html";
+  };
+
   const params = new URLSearchParams(window.location.search);
   const device = params.get("device");
-  const slot   = parseInt(params.get("slot"));
+  const slot   = parseInt(params.get("slot"),10);
 
   if(!device || !slot){
     messageEl.textContent = "Welcome! Please scan a QR code to use a slot.";
@@ -65,10 +70,7 @@ window.addEventListener("load", async ()=>{
   visitorActions.classList.add("hidden");
   infoEl.textContent = `Device: ${device} | Slot: ${slot}`;
 
-  /* =====================================================
-     ✅ ADDED ONLY — OCCUPIED CHECK
-     blocks if someone already logged in
-  ===================================================== */
+  /* occupied check */
   const { data: occupied } = await client
     .from("rack_sessions")
     .select("id")
@@ -82,13 +84,22 @@ window.addEventListener("load", async ()=>{
     messageEl.classList.add("error");
     return;
   }
-  /* ===================================================== */
 
+  /* ✅ session per slot (FIX) */
+  const key = `session_${device}_${slot}`;
+  let sessionId = localStorage.getItem(key);
 
-  let sessionId = localStorage.getItem("session_id");
   if(!sessionId){
     sessionId = crypto.randomUUID();
-    localStorage.setItem("session_id", sessionId);
+    localStorage.setItem(key, sessionId);
+
+    /* insert once */
+    await client.from("sessions").insert([{
+      device_uuid: device,
+      slot,
+      session_id: sessionId,
+      last_seen: Math.floor(Date.now()/1000)
+    }]);
   }
 
   const { data: allowed } = await client.rpc("try_acquire_lock", {
@@ -107,14 +118,12 @@ window.addEventListener("load", async ()=>{
   messageEl.textContent=`Rack Ready - Slot ${slot}`;
   slotActions.classList.remove("hidden");
 
-  /* heartbeat (UNCHANGED) */
+  /* ✅ heartbeat FIXED (update only) */
   setInterval(async()=>{
-    await client.from("sessions").insert([{
-      device_uuid: device,
-      slot,
-      session_id: sessionId,
-      last_seen: Math.floor(Date.now()/1000)
-    }]);
+    await client
+      .from("sessions")
+      .update({ last_seen: Math.floor(Date.now()/1000) })
+      .eq("session_id", sessionId);
   },15000);
 
   registerBtn.onclick=()=>{
@@ -126,7 +135,7 @@ window.addEventListener("load", async ()=>{
 
 
 /* =====================================================
-   LOGIN FEATURE (ALREADY ADDED BEFORE)
+   LOGIN FEATURE (UNCHANGED)
 ===================================================== */
 
 let loginPollTimer=null;
