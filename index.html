@@ -13,13 +13,6 @@
     .hidden{display:none}
     .error{color:red}
     .muted{color:#777;font-size:14px}
-    .link{color:#2563eb;cursor:pointer;text-decoration:underline;font-size:14px}
-
-    .modal{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;justify-content:center;align-items:center}
-    .modal.hidden{display:none}
-    .modal-box{background:white;padding:20px;border-radius:10px;width:300px}
-    .modal-box input{width:90%;padding:8px;margin:6px 0}
-    .modal-msg{min-height:18px;margin-bottom:8px;font-size:13px}
   </style>
 </head>
 <body>
@@ -27,16 +20,10 @@
 <h2 id="message">Welcome to Smart BikeRack</h2>
 <div id="info" class="muted"></div>
 
-<!-- VISITOR -->
 <div id="visitorActions">
   <button id="visitorLoginBtn">Admin Login</button>
-  <div class="muted">
-    You don't have an account?
-    <span id="claimLink" class="link">Claim your BikeRack unit now.</span>
-  </div>
 </div>
 
-<!-- SLOT -->
 <div id="slotActions" class="hidden">
   <button id="registerBtn">Register</button>
   <button id="loginUserBtn">Login</button>
@@ -59,36 +46,39 @@ const slotActions = document.getElementById("slotActions");
 const registerBtn = document.getElementById("registerBtn");
 const loginUserBtn = document.getElementById("loginUserBtn");
 
-visitorLoginBtn.onclick = () => location.href = "admin.html";
+/* ================= ORIGINAL SESSION LOGIC (RESTORED) ================= */
 
+window.addEventListener("load", async ()=>{
 
-/* ================= INIT ================= */
+  const params = new URLSearchParams(location.search);
+  const device = params.get("device");
+  const slot   = parseInt(params.get("slot"));
 
-async function initPage(){
-
-  const params=new URLSearchParams(location.search);
-  const device=params.get("device");
-  const slot=parseInt(params.get("slot"));
-
-  if(!device||!slot){
-    messageEl.textContent="Welcome! Please scan a QR code to use a slot.";
+  if(!device || !slot){
+    messageEl.textContent = "Welcome! Please scan a QR code to use a slot.";
     return;
   }
 
   visitorActions.classList.add("hidden");
-  infoEl.textContent=`Device: ${device} | Slot: ${slot}`;
+  infoEl.textContent = `Device: ${device} | Slot: ${slot}`;
 
-  /* block if occupied */
-  const { data: active } = await client
-    .from("rack_sessions")
-    .select("id")
-    .eq("device_uuid", device)
-    .eq("slot", slot)
-    .eq("status", 1)
-    .limit(1);
+  /* session id */
+  let sessionId = localStorage.getItem("session_id");
+  if(!sessionId){
+    sessionId = crypto.randomUUID();
+    localStorage.setItem("session_id", sessionId);
+  }
 
-  if(active && active.length){
-    messageEl.textContent="Slot currently occupied.";
+  /* lock acquire */
+  const { data: allowed } = await client.rpc("try_acquire_lock", {
+    target_device: device,
+    target_slot: slot,
+    new_session_id: sessionId,
+    timeout_seconds: 60
+  });
+
+  if(!allowed){
+    messageEl.textContent="Slot currently in use.";
     messageEl.classList.add("error");
     return;
   }
@@ -96,17 +86,27 @@ async function initPage(){
   messageEl.textContent=`Rack Ready - Slot ${slot}`;
   slotActions.classList.remove("hidden");
 
+  /* heartbeat */
+  setInterval(async()=>{
+    await client.from("sessions").insert([{
+      device_uuid: device,
+      slot,
+      session_id: sessionId,
+      last_seen: Math.floor(Date.now()/1000)
+    }]);
+  },15000);
+
+  /* register */
   registerBtn.onclick=()=>{
     location.href=`register.html?device=${device}&slot=${slot}`;
   };
 
+  /* login */
   loginUserBtn.onclick=()=>startLogin(device,slot);
-}
-
-window.addEventListener("load",()=>initPage());
+});
 
 
-/* ================= LOGIN FLOW ================= */
+/* ================= LOGIN FEATURE (ONLY ADDED) ================= */
 
 let loginPollTimer=null;
 
@@ -144,23 +144,17 @@ async function pollLogin(id,device,slot){
     .eq("id",id)
     .single();
 
-  /* waiting */
   if(data.status===0){
     loginPollTimer=setTimeout(()=>pollLogin(id,device,slot),2000);
     return;
   }
 
-  /* success */
   if(data.status===1){
     clearTimeout(loginPollTimer);
-    messageEl.textContent="Login successful. Redirecting...";
-    setTimeout(()=>{
-      location.href=`login.html?device=${device}&slot=${slot}&id=${data.user_id}`;
-    },1200);
+    location.href=`login.html?device=${device}&slot=${slot}&id=${data.user_id}`;
     return;
   }
 
-  /* retry */
   if(data.status===2){
     clearTimeout(loginPollTimer);
 
@@ -175,7 +169,6 @@ async function pollLogin(id,device,slot){
     return;
   }
 
-  /* ended */
   if(data.status===3){
     clearTimeout(loginPollTimer);
     messageEl.textContent="Session ended.";
