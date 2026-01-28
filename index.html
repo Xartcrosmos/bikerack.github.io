@@ -131,12 +131,15 @@ window.addEventListener("load", async ()=>{
 
   /* ================= HEARTBEAT ================= */
 
-  setInterval(async()=>{
-    await client
-      .from("sessions")
-      .update({ last_seen: Math.floor(Date.now()/1000) })
-      .eq("session_id", sessionId);
-  },15000);
+    setInterval(async()=>{
+      await client
+        .from("sessions")
+        .update({
+          last_seen: Math.floor(Date.now()/1000)
+        })
+        .eq("session_id", sessionId);
+    },15000);
+
 
   registerBtn.onclick=()=>{
     location.href=`register.html?device=${device}&slot=${slot}`;
