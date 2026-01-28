@@ -100,30 +100,29 @@ window.addEventListener("load", async ()=>{
     }
     // If it IS our session, we just continue to the heartbeat
   } else {
-    /* ========= STEP 3: CREATE NEW SESSION ========= */
-    // ONLY delete the expired session for this specific device/slot combo
-    await client
-      .from("sessions")
-      .delete()
-      .eq("device_uuid", device)
-      .eq("slot", slot);
+    /* ========= STEP 3: CREATE OR UPDATE SESSION (UPSERT) ========= */
+    sessionId = crypto.randomUUID(); // Generate a new ID every time we land here
 
-    sessionId = crypto.randomUUID();
-
-    const { error } = await client.from("sessions").insert([{
+    const sessionData = {
       device_uuid: device,
       slot: slot,
       session_id: sessionId,
       last_seen: now()
-    }]);
+    };
+    
+    const { error } = await client
+      .from("sessions")
+      .upsert([sessionData], { onConflict: 'device_uuid, slot' }); // Specify the conflict keys
 
     if (error) {
-      console.error("Insert Error:", error);
+      // Use this improved console log to see the SPECIFIC error details
+      console.error("Insert/Upsert Error:", error.message, error.details); 
       showError("Could not start session.");
       return;
     }
 
     localStorage.setItem(sessionKey, sessionId);
+
   }
 
   /* ========= ALLOW ========= */
