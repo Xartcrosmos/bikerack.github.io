@@ -156,10 +156,20 @@ releaseBtn.onclick = async ()=>{
 };
 
 
-/* ========= CLEANUP ========= */
-document.addEventListener("visibilitychange", ()=>{
-  if(document.hidden) stopHeartbeat();
+/* ========= CLEANUP & RESUME ========= */
+document.addEventListener("visibilitychange", () => {
+  // Only restart if we actually have an active sessionId (haven't clicked release)
+  if (document.hidden) {
+    stopHeartbeat();
+  } else if (sessionId && slotActions.classList.contains("hidden") === false) {
+    const resumeHeartbeat = async () => {
+      await client.from("sessions").update({ last_seen: now() }).eq("session_id", sessionId);
+    };
+    resumeHeartbeat(); 
+    heartbeat = setInterval(resumeHeartbeat, 15000);
+  }
 });
+
 </script>
 
 </body>
