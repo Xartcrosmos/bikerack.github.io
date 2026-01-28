@@ -105,12 +105,6 @@ window.addEventListener("load", async () => {
     last_seen: now()
   }], { onConflict: 'device_uuid, slot' });
 
-  if (upsertError) {
-    console.error("Lock Error:", upsertError.message);
-    messageEl.textContent = "System Error. Please try again.";
-    return;
-  }
-
   localStorage.setItem(sessionKey, sessionId);
   messageEl.textContent = `Rack Ready - Slot ${slot}`;
   slotActions.classList.remove("hidden");
