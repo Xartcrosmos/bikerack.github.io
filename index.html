@@ -81,7 +81,12 @@ window.addEventListener("load", async () => {
   }
 
   /* ========= SESSION LOCK LOGIC (UPSERT) ========= */
-  const { data: active } = await client
+   /* ========= SESSION LOCK LOGIC (UPSERT) ========= */
+  sessionKey = `session_${device}_${slot}`;
+  sessionId = localStorage.getItem(sessionKey);
+
+  // Check current DB status first
+  const { data: activeDB } = await client
     .from("sessions")
     .select("session_id")
     .eq("device_uuid", device)
@@ -89,23 +94,27 @@ window.addEventListener("load", async () => {
     .gt("last_seen", now() - 60)
     .maybeSingle();
 
-  if (active && active.session_id !== sessionId) {
+  if (activeDB && activeDB.session_id !== sessionId) {
     messageEl.textContent = "Slot currently in use by another device.";
     messageEl.className = "error";
     return;
   }
-
-  // No active session or it's ours? Create/Refresh it.
-  if (!sessionId) sessionId = crypto.randomUUID();
   
+  // If we reach here, we are allowed to take over or continue our session.
+  if (!sessionId) sessionId = crypto.randomUUID();
+
+  // Use UPSERT to claim the spot
   const { error: upsertError } = await client.from("sessions").upsert([{
     device_uuid: device,
     slot: slot,
     session_id: sessionId,
     last_seen: now()
   }], { onConflict: 'device_uuid, slot' });
+  
+  // No error handler needed here as DB constraint handles conflict.
 
   localStorage.setItem(sessionKey, sessionId);
+
   messageEl.textContent = `Rack Ready - Slot ${slot}`;
   slotActions.classList.remove("hidden");
 
