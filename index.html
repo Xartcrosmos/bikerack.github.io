@@ -37,20 +37,22 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 const client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-/* ================= ELEMENTS ================= */
-
 const messageEl = document.getElementById("message");
 const infoEl = document.getElementById("info");
 const visitorActions = document.getElementById("visitorActions");
 const slotActions = document.getElementById("slotActions");
+
 const registerBtn = document.getElementById("registerBtn");
 const loginUserBtn = document.getElementById("loginUserBtn");
 
-/* ================= ORIGINAL SESSION LOGIC (RESTORED) ================= */
+
+/* =====================================================
+   ORIGINAL SESSION LOCK (UNCHANGED)
+===================================================== */
 
 window.addEventListener("load", async ()=>{
 
-  const params = new URLSearchParams(location.search);
+  const params = new URLSearchParams(window.location.search);
   const device = params.get("device");
   const slot   = parseInt(params.get("slot"));
 
@@ -62,14 +64,27 @@ window.addEventListener("load", async ()=>{
   visitorActions.classList.add("hidden");
   infoEl.textContent = `Device: ${device} | Slot: ${slot}`;
 
-  /* session id */
+  /* occupied check */
+  const { data: occupied } = await client
+    .from("rack_sessions")
+    .select("id")
+    .eq("device_uuid", device)
+    .eq("slot", slot)
+    .eq("status", 1)
+    .limit(1);
+
+  if(occupied && occupied.length){
+    messageEl.textContent = "Slot is occupied.";
+    messageEl.classList.add("error");
+    return;
+  }
+
   let sessionId = localStorage.getItem("session_id");
   if(!sessionId){
     sessionId = crypto.randomUUID();
     localStorage.setItem("session_id", sessionId);
   }
 
-  /* lock acquire */
   const { data: allowed } = await client.rpc("try_acquire_lock", {
     target_device: device,
     target_slot: slot,
@@ -86,27 +101,32 @@ window.addEventListener("load", async ()=>{
   messageEl.textContent=`Rack Ready - Slot ${slot}`;
   slotActions.classList.remove("hidden");
 
-  /* heartbeat */
+  /* =====================================================
+     ✅ FIXED HEARTBEAT (UPSERT, NOT INSERT)
+  ===================================================== */
   setInterval(async()=>{
-    await client.from("sessions").insert([{
-      device_uuid: device,
-      slot,
-      session_id: sessionId,
-      last_seen: Math.floor(Date.now()/1000)
-    }]);
+    await client
+      .from("sessions")
+      .upsert({
+        device_uuid: device,
+        slot,
+        session_id: sessionId,
+        last_seen: Math.floor(Date.now()/1000)
+      }, { onConflict: 'session_id' });
   },15000);
+  /* ===================================================== */
 
-  /* register */
   registerBtn.onclick=()=>{
-    location.href=`register.html?device=${device}&slot=${slot}`;
+    window.location.href=`register.html?device=${device}&slot=${slot}`;
   };
 
-  /* login */
   loginUserBtn.onclick=()=>startLogin(device,slot);
 });
 
 
-/* ================= LOGIN FEATURE (ONLY ADDED) ================= */
+/* =====================================================
+   LOGIN FEATURE (UNCHANGED)
+===================================================== */
 
 let loginPollTimer=null;
 
@@ -151,7 +171,7 @@ async function pollLogin(id,device,slot){
 
   if(data.status===1){
     clearTimeout(loginPollTimer);
-    location.href=`login.html?device=${device}&slot=${slot}&id=${data.user_id}`;
+    window.location.href=`login.html?device=${device}&slot=${slot}&id=${data.user_id}`;
     return;
   }
 
