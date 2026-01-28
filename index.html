@@ -83,26 +83,26 @@ window.addEventListener("load", async ()=>{
     .select("session_id,last_seen")
     .eq("device_uuid", device)
     .eq("slot", slot)
-    .order('last_seen', { ascending: false })
+    .gt("last_seen", now()-60)
     .limit(1);
 
-  // FIX: Access the first element [0] of the array to prevent crash
-  if(active && active.length && (now() - active[0].last_seen < 60)){
+  if(active && active.length){
     if(active[0].session_id !== sessionId){
       showError("Slot is in use.");
       return;
     }
   }
   else{
-    /* ========= STEP 3: CREATE NEW SESSION ========= */
+    /* ========= STEP 3: REUSE/UPSERT SESSION ========= */
     sessionId = crypto.randomUUID();
 
-    const { error } = await client.from("sessions").insert([{
+    // Reuses the row matching this device and slot
+    const { error } = await client.from("sessions").upsert({
       device_uuid: device,
-      slot,
+      slot: slot,
       session_id: sessionId,
       last_seen: now()
-    }]);
+    }, { onConflict: 'device_uuid,slot' });
 
     if(error){
       showError("Slot is in use.");
