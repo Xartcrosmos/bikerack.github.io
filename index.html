@@ -97,7 +97,6 @@ window.addEventListener("load", async ()=>{
   else{
     /* ========= STEP 3: CREATE NEW SESSION ========= */
     // FIX: Clear the old expired row from DB before inserting a new one
-    await client.from("sessions").delete().eq("device_uuid", device).eq("slot", slot);
 
     sessionId = crypto.randomUUID();
 
