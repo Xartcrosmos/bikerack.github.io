@@ -8,29 +8,28 @@
 <script src="https://unpkg.com"></script>
 
 <style>
-body{font-family:Arial, sans-serif; text-align:center; margin-top:100px; background-color: #f4f4f9;}
-button{padding:12px 25px; margin:8px; font-size:16px; cursor:pointer; border-radius: 8px; border: 1px solid #ddd;}
-#releaseBtn { background-color: #ff4d4d; color: white; border: none; }
+body{font-family:Arial;text-align:center;margin-top:100px}
+button{padding:12px 25px;margin:8px;font-size:16px;cursor:pointer}
 .hidden{display:none}
-.error{color:red; font-weight: bold;}
-.muted{color:#777; font-size:14px; margin-top: 10px;}
-#message { transition: all 0.3s ease; }
+.error{color:red}
+.muted{color:#777;font-size:14px}
 </style>
 </head>
 <body>
 
-<h2 id="message">Initializing...</h2>
+<h2 id="message">Welcome to Smart BikeRack</h2>
 <div id="info" class="muted"></div>
 
 <div id="slotActions" class="hidden">
+  <button id="registerBtn">Register</button>
+  <button id="loginUserBtn">Login</button>
   <button id="releaseBtn">Release Slot</button>
-  <div class="muted">Session is active. Closing the tab will expire the lock in 60s.</div>
 </div>
 
 <script>
 /* ========= CONFIG ========= */
 const SUPABASE_URL = "https://lguyiavotyrxdlyhsvmz.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxndXlpYXZvdHlyeGRseWhzdm16Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkxNzQ0MjQsImV4cCI6MjA4NDc1MDQyNH0.f1hT0B68mv2lxVsQldk3ABx_0yBBUK2t1fcRHWGhmyM";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxndXlpYXZvdHlyeDRseWhzdm16Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkxNzQ0MjQsImV4cCI6MjA4NDc1MDQyNH0.f1hT0B68mv2lxVsQldk3ABx_0yBBUK2t1fcRHWGhmyM";
 
 const client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -45,118 +44,114 @@ let sessionId = null;
 let sessionKey = null;
 
 const now = () => Math.floor(Date.now()/1000);
-const showError = (m)=>{ messageEl.textContent=m; messageEl.className="error"; };
+const showError = (m)=>{messageEl.textContent=m;messageEl.className="error";};
 const stopHeartbeat = ()=>{ if(heartbeat) clearInterval(heartbeat); };
 
 window.addEventListener("load", async ()=>{
 
   const params = new URLSearchParams(location.search);
   const device = params.get("device");
-  const slot = parseInt(params.get("slot"), 10);
+  const slot = parseInt(params.get("slot"),10);
 
   if(!device || Number.isNaN(slot)){
-    showError("Invalid QR Code. Please scan again.");
+    showError("Invalid QR.");
     return;
   }
 
   infoEl.textContent = `Device: ${device} | Slot: ${slot}`;
-  sessionKey = `session_${device}_${slot}`;
-  sessionId = localStorage.getItem(sessionKey);
 
-  /* ========= STEP 1: PHYSICAL OCCUPIED CHECK (RACK_SESSIONS) ========= */
-  const { data: rack, error: rackErr } = await client
+  /* ========= STEP 1: PHYSICAL OCCUPIED ========= */
+  const { data: rack } = await client
     .from("rack_sessions")
     .select("status")
     .eq("device_uuid", device)
     .eq("slot", slot)
-    .eq("status", 1);
+    .eq("status", 1)
+    .limit(1);
 
-  if(rack && rack.length > 0){
-    showError("Slot is physically occupied.");
+  if(rack && rack.length){
+    showError("Slot is occupied.");
     return;
   }
 
-  /* ========= STEP 2: ACTIVE DIGITAL SESSION CHECK (SESSIONS) ========= */
-  // Look for a session that is NOT ours and is still "warm" (updated < 60s ago)
-  const { data: activeOthers, error: sessionErr } = await client
+  /* ========= STEP 2: ACTIVE SESSION CHECK ========= */
+  sessionKey = `session_${device}_${slot}`;
+  sessionId = localStorage.getItem(sessionKey);
+
+  const { data: active } = await client
     .from("sessions")
-    .select("session_id")
+    .select("session_id,last_seen")
     .eq("device_uuid", device)
     .eq("slot", slot)
-    .neq("session_id", sessionId || '00000000-0000-0000-0000-000000000000') 
-    .gt("last_seen", now() - 60);
+    .limit(1);
 
-  if(activeOthers && activeOthers.length > 0){
-    showError("Slot is currently in use by another user.");
-    return;
-  }
+  // LOGIC: If a record exists AND it was seen less than 60s ago
+  if(active && active.length && (now() - active[0].last_seen < 60)){
+    // If it's not my session from this browser, block it.
+    if(active[0].session_id !== sessionId){
+      showError("Slot is in use.");
+      return;
+    }
+  } 
+  else {
+    /* ========= STEP 3: CREATE NEW SESSION ========= */
+    // If we are here, it means either:
+    // 1. No session exists
+    // 2. The session exists but is older than 60s (expired)
+    
+    // Clear out any expired record for this slot first to avoid insert errors
+    await client.from("sessions").delete().eq("device_uuid", device).eq("slot", slot);
 
-  /* ========= STEP 3: CLAIM OR RESUME SESSION ========= */
-  if(!sessionId) {
     sessionId = crypto.randomUUID();
-  }
 
-  // Use upsert so we don't crash if the record already exists
-  const { error: upsertErr } = await client
-    .from("sessions")
-    .upsert({
+    const { error } = await client.from("sessions").insert([{
       device_uuid: device,
-      slot: slot,
+      slot,
       session_id: sessionId,
       last_seen: now()
-    }, { onConflict: 'session_id' });
+    }]);
 
-  if(upsertErr){
-    console.error("Upsert Error:", upsertErr);
-    showError("Database Sync Error.");
-    return;
+    if(error){
+      showError("Slot is in use.");
+      return;
+    }
+
+    localStorage.setItem(sessionKey, sessionId);
   }
 
-  localStorage.setItem(sessionKey, sessionId);
-
-  /* ========= SUCCESS: ACTIVATE UI & HEARTBEAT ========= */
+  /* ========= ALLOW ========= */
   messageEl.textContent = `Rack Ready - Slot ${slot}`;
-  messageEl.className = "";
   slotActions.classList.remove("hidden");
 
-  heartbeat = setInterval(async ()=>{
-    const { error } = await client
-      .from("sessions")
+  /* ========= HEARTBEAT ========= */
+  heartbeat = setInterval(()=>{
+    client.from("sessions")
       .update({ last_seen: now() })
       .eq("session_id", sessionId);
-    
-    if(error) console.error("Heartbeat failed", error);
-  }, 15000);
+  },15000);
 
 });
 
-/* ========= RELEASE ACTION ========= */
+
+/* ========= RELEASE ========= */
 releaseBtn.onclick = async ()=>{
-  if(!confirm("Are you sure you want to release this slot?")) return;
-  
   stopHeartbeat();
 
-  const { error } = await client
+  await client
     .from("sessions")
     .delete()
     .eq("session_id", sessionId);
 
-  if(!error) {
-    localStorage.removeItem(sessionKey);
-    messageEl.textContent = "Slot Released ✔";
-    slotActions.classList.add("hidden");
-  } else {
-    alert("Error releasing slot. Try again.");
-  }
+  localStorage.removeItem(sessionKey);
+
+  messageEl.textContent="Slot Released ✔";
+  slotActions.classList.add("hidden");
 };
 
-/* ========= CLEANUP ON TAB HIDE ========= */
+
+/* ========= CLEANUP ========= */
 document.addEventListener("visibilitychange", ()=>{
-  if(document.hidden) {
-    // Optional: You can choose to stop heartbeat here to save battery, 
-    // but the session will expire in 60s.
-    // stopHeartbeat(); 
-  }
+  if(document.hidden) stopHeartbeat();
 });
 </script>
 
