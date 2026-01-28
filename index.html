@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>BikeRack Slot Access</title>
 
-  <!-- Supabase -->
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 
   <style>
@@ -40,7 +39,7 @@
 <!-- SLOT -->
 <div id="slotActions" class="hidden">
   <button id="registerBtn">Register</button>
-  <button id="loginUserBtn">Login</button> <!-- ✅ ADDED -->
+  <button id="loginUserBtn">Login</button>
 </div>
 
 <!-- CLAIM -->
@@ -90,40 +89,32 @@
 </div>
 
 <script>
-/* =====================================================
-   BASE (UNCHANGED)
-===================================================== */
+/* ===================== CONFIG ===================== */
 
 const SUPABASE_URL = "https://lguyiavotyrxdlyhsvmz.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxndXlpYXZvdHlyeGRseWhzdm16Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkxNzQ0MjQsImV4cCI6MjA4NDc1MDQyNH0.f1hT0B68mv2lxVsQldk3ABx_0yBBUK2t1fcRHWGhmyM";
 
 const client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+/* ===================== ELEMENTS ===================== */
+
 const messageEl = document.getElementById("message");
 const infoEl = document.getElementById("info");
 const visitorActions = document.getElementById("visitorActions");
 const slotActions = document.getElementById("slotActions");
 
+/* ===================== HELPERS ===================== */
+
 function openModal(id){document.getElementById(id).classList.remove("hidden");}
 function closeModal(id){document.getElementById(id).classList.add("hidden");}
-function showMsg(text,isErr){
-  const el=document.querySelector('.modal:not(.hidden) .modal-msg');
-  if(!el)return;
-  el.textContent=text;
-  el.className='modal-msg '+(isErr?'error':'muted');
-}
 
-/* existing buttons */
 visitorLoginBtn.onclick=()=>openModal("loginModal");
 claimLink.onclick=()=>openModal("claimModal");
 cancelClaim.onclick=()=>closeModal("claimModal");
 cancelCreate.onclick=()=>closeModal("createModal");
 cancelLogin.onclick=()=>closeModal("loginModal");
 
-
-/* =====================================================
-   ORIGINAL SESSION LOCK LOGIC (UNCHANGED)
-===================================================== */
+/* ===================== SESSION LOCK ===================== */
 
 async function initPage(){
 
@@ -177,13 +168,10 @@ async function initPage(){
 
 window.addEventListener("load",()=>initPage());
 
-
-/* =====================================================
-   ✅ ADDED FEATURE — SLOT LOGIN
-===================================================== */
+/* ===================== LOGIN FEATURE (CLEAN) ===================== */
 
 const loginUserBtn = document.getElementById("loginUserBtn");
-let loginPollTimer = null;
+let loginPollTimer=null;
 
 loginUserBtn.onclick = async () => {
 
@@ -191,46 +179,43 @@ loginUserBtn.onclick = async () => {
   const device = params.get("device");
   const slot   = parseInt(params.get("slot"));
 
-  messageEl.classList.remove("error");
-  messageEl.textContent = "Please scan fingerprint to login...";
+  messageEl.textContent="Please scan fingerprint to login...";
 
-  const { data, error } = await client
+  const {data,error}=await client
     .from("rack_sessions")
     .insert([{
-      device_uuid: device,
-      slot: slot,
-      user_id: null,
-      timein: null,
-      timeout: null,
-      status: 0
+      device_uuid:device,
+      slot,
+      user_id:null,
+      timein:null,
+      timeout:null,
+      status:0
     }])
     .select()
     .single();
 
   if(error){
-    console.error(error);
-    messageEl.textContent = error.message;
-    messageEl.classList.add("error");
+    messageEl.textContent=error.message;
     return;
   }
 
-  pollLogin(data.id, device, slot);
+  pollLogin(data.id,device,slot);
 };
 
-async function pollLogin(id, device, slot){
+async function pollLogin(id,device,slot){
 
-  const { data } = await client
+  const {data}=await client
     .from("rack_sessions")
     .select("status")
-    .eq("id", id)
+    .eq("id",id)
     .single();
 
-  if(data.status === 0){
+  if(data.status===0){
     loginPollTimer=setTimeout(()=>pollLogin(id,device,slot),2000);
     return;
   }
 
-  if(data.status === 1){
+  if(data.status===1){
     clearTimeout(loginPollTimer);
     messageEl.textContent="Login successful. Redirecting...";
     setTimeout(()=>{
