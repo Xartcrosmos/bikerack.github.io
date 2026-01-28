@@ -74,42 +74,47 @@ window.addEventListener("load", async ()=>{
     return;
   }
 
-  /* ========= STEP 2: ACTIVE SESSION CHECK ========= */
-  // MOVED: Get local ID first so we can compare it to the DB correctly
+    /* ========= STEP 2: ACTIVE SESSION CHECK ========= */
   sessionKey = `session_${device}_${slot}`;
   sessionId = localStorage.getItem(sessionKey);
 
+  // Check if there is a session for THIS specific device and slot
   const { data: active } = await client
     .from("sessions")
-    .select("session_id,last_seen")
-    .eq("device_uuid", device)
-    .eq("slot", slot)
-    .gt("last_seen", now()-60)
+    .select("session_id, last_seen")
+    .eq("device_uuid", device) // MUST match current device
+    .eq("slot", slot)        // MUST match current slot
+    .gt("last_seen", now() - 60)
     .limit(1);
 
-  if(active.length){
-    // Compare string IDs correctly
-    if(active[0].session_id !== sessionId){
-      showError("Slot is in use.");
+  if (active.length) {
+    // If a session exists and it's NOT the one stored in this browser
+    if (active[0].session_id !== sessionId) {
+      showError("Slot is in use by another user.");
       return;
     }
-  }
-  else{
+    // If it IS our session, we just continue to the heartbeat
+  } else {
     /* ========= STEP 3: CREATE NEW SESSION ========= */
-    // FIX: Clear the old expired row from DB before inserting a new one
-    await client.from("sessions").delete().eq("device_uuid", device).eq("slot", slot);
+    // ONLY delete the expired session for this specific device/slot combo
+    await client
+      .from("sessions")
+      .delete()
+      .eq("device_uuid", device)
+      .eq("slot", slot);
 
     sessionId = crypto.randomUUID();
 
     const { error } = await client.from("sessions").insert([{
       device_uuid: device,
-      slot,
+      slot: slot,
       session_id: sessionId,
       last_seen: now()
     }]);
 
-    if(error){
-      showError("Slot is in use.");
+    if (error) {
+      console.error("Insert Error:", error);
+      showError("Could not start session.");
       return;
     }
 
