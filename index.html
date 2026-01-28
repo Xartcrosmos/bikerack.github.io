@@ -41,7 +41,7 @@ const loginUserBtn = document.getElementById("loginUserBtn");
 
 
 /* =====================================================
-   SLOT MODE — LOCK FIRST (RESTORED BEHAVIOR)
+   SLOT MODE — FIXED (ONLY session reuse changed)
 ===================================================== */
 
 window.addEventListener("load", async ()=>{
@@ -58,33 +58,14 @@ window.addEventListener("load", async ()=>{
   infoEl.textContent=`Device: ${device} | Slot: ${slot}`;
 
   /* =================================================
-     1️⃣ LOCK FIRST (like original working version)
-  ================================================= */
-
-  const tempSession = crypto.randomUUID();
-
-  const { data: allowed } = await client.rpc("try_acquire_lock", {
-    target_device: device,
-    target_slot: slot,
-    new_session_id: tempSession,
-    timeout_seconds: 60
-  });
-
-  if(!allowed){
-    messageEl.textContent="Slot is occupied.";
-    messageEl.classList.add("error");
-    return;
-  }
-
-  /* =================================================
-     2️⃣ SESSION AFTER LOCK (no timing issue)
+     ✅ ALWAYS REUSE SAME SESSION (THIS IS THE ONLY FIX)
   ================================================= */
 
   const key = `session_${device}_${slot}`;
   let sessionId = localStorage.getItem(key);
 
   if(!sessionId){
-    sessionId = tempSession;
+    sessionId = crypto.randomUUID();
     localStorage.setItem(key, sessionId);
 
     await client.from("sessions").insert([{
@@ -93,6 +74,23 @@ window.addEventListener("load", async ()=>{
       session_id: sessionId,
       last_seen: Math.floor(Date.now()/1000)
     }]);
+  }
+
+  /* =================================================
+     LOCK USING SAME SESSION ID (NOT tempSession)
+  ================================================= */
+
+  const { data: allowed } = await client.rpc("try_acquire_lock", {
+    target_device: device,
+    target_slot: slot,
+    new_session_id: sessionId,
+    timeout_seconds: 60
+  });
+
+  if(!allowed){
+    messageEl.textContent="Slot is occupied.";
+    messageEl.classList.add("error");
+    return;
   }
 
   /* ================================================= */
@@ -119,7 +117,7 @@ window.addEventListener("load", async ()=>{
 
 
 /* =====================================================
-   LOGIN (UNCHANGED)
+   LOGIN (UNCHANGED — your original code kept)
 ===================================================== */
 
 let loginPollTimer=null;
