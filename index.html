@@ -29,7 +29,7 @@ button{padding:12px 25px;margin:8px;font-size:16px;cursor:pointer}
 <script>
 /* ========= CONFIG ========= */
 const SUPABASE_URL = "https://lguyiavotyrxdlyhsvmz.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxndXlpYXZvdHlyeGRseWhzdm16Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkxNzQ0MjQsImV4cCI6MjA4NDc1MDQyNH0.f1hT0B68mv2lxVsQldk3ABx_0yBBUK2t1fcRHWGhmyM";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxndXlpYXZvdHlyeDRseWhzdm16Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkxNzQ0MjQsImV4cCI6MjA4NDc1MDQyNH0.f1hT0B68mv2lxVsQldk3ABx_0yBBUK2t1fcRHWGhmyM";
 
 const client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -69,13 +69,12 @@ window.addEventListener("load", async ()=>{
     .eq("status", 1)
     .limit(1);
 
-  if(rack.length){
+  if(rack && rack.length){
     showError("Slot is occupied.");
     return;
   }
 
   /* ========= STEP 2: ACTIVE SESSION CHECK ========= */
-  // MOVED: Get local ID first so we can compare it to the DB correctly
   sessionKey = `session_${device}_${slot}`;
   sessionId = localStorage.getItem(sessionKey);
 
@@ -87,8 +86,7 @@ window.addEventListener("load", async ()=>{
     .gt("last_seen", now()-60)
     .limit(1);
 
-  if(active.length){
-    // Compare string IDs correctly
+  if(active && active.length){
     if(active[0].session_id !== sessionId){
       showError("Slot is in use.");
       return;
@@ -96,9 +94,7 @@ window.addEventListener("load", async ()=>{
   }
   else{
     /* ========= STEP 3: CREATE NEW SESSION ========= */
-    // FIX: Clear the old expired row from DB before inserting a new one
-    await client.from("sessions").delete().eq("device_uuid", device).eq("slot", slot);
-
+    // The expired row is now ignored by Step 2 and left in the DB as a log.
     sessionId = crypto.randomUUID();
 
     const { error } = await client.from("sessions").insert([{
@@ -129,7 +125,6 @@ window.addEventListener("load", async ()=>{
 
 });
 
-
 /* ========= RELEASE ========= */
 releaseBtn.onclick = async ()=>{
   stopHeartbeat();
@@ -144,7 +139,6 @@ releaseBtn.onclick = async ()=>{
   messageEl.textContent="Slot Released ✔";
   slotActions.classList.add("hidden");
 };
-
 
 /* ========= CLEANUP ========= */
 document.addEventListener("visibilitychange", ()=>{
