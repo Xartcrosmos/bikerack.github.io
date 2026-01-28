@@ -87,7 +87,7 @@ window.addEventListener("load", async ()=>{
     .limit(1);
 
   if(active && active.length){
-    // FIX: Must use active[0] because data is an array
+    // FIX: Using [0] because active is an array
     if(active[0].session_id !== sessionId){
       showError("Slot is in use.");
       return;
@@ -95,6 +95,8 @@ window.addEventListener("load", async ()=>{
   }
   else{
     /* ========= STEP 3: CREATE NEW SESSION ========= */
+    // Logic: If no session is active within 60s, create a new one.
+    // No delete needed here as long as your PK is 'id'.
     sessionId = crypto.randomUUID();
 
     const { error } = await client.from("sessions").insert([{
@@ -105,7 +107,7 @@ window.addEventListener("load", async ()=>{
     }]);
 
     if(error){
-      console.error(error);
+      console.error("Insert Error:", error);
       showError("Slot is in use.");
       return;
     }
@@ -115,6 +117,7 @@ window.addEventListener("load", async ()=>{
 
   /* ========= ALLOW ========= */
   messageEl.textContent = `Rack Ready - Slot ${slot}`;
+  messageEl.className = ""; // Reset error class if any
   slotActions.classList.remove("hidden");
 
   /* ========= HEARTBEAT ========= */
