@@ -209,7 +209,8 @@ loginUserBtn.onclick = async () => {
     .single();
 
   if(error){
-    messageEl.textContent="Failed starting login.";
+    console.error(error);
+    messageEl.textContent = error.message;
     messageEl.classList.add("error");
     return;
   }
