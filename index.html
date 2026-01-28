@@ -1,19 +1,19 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>BikeRack Slot Access</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>BikeRack Slot Access</title>
 
-  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 
-  <style>
-    body{font-family:Arial;text-align:center;margin-top:100px}
-    button{padding:12px 25px;margin:8px;font-size:16px;cursor:pointer}
-    .hidden{display:none}
-    .error{color:red}
-    .muted{color:#777;font-size:14px}
-  </style>
+<style>
+body{font-family:Arial;text-align:center;margin-top:100px}
+button{padding:12px 25px;margin:8px;font-size:16px;cursor:pointer}
+.hidden{display:none}
+.error{color:red}
+.muted{color:#777;font-size:14px}
+</style>
 </head>
 <body>
 
@@ -23,160 +23,128 @@
 <div id="slotActions" class="hidden">
   <button id="registerBtn">Register</button>
   <button id="loginUserBtn">Login</button>
+  <button id="releaseBtn">Release Slot</button>
 </div>
 
 <script>
-/* ================= CONFIG ================= */
-
+/* ========= CONFIG ========= */
 const SUPABASE_URL = "https://lguyiavotyrxdlyhsvmz.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxndXlpYXZvdHlyeGRseWhzdm16Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkxNzQ0MjQsImV4cCI6MjA4NDc1MDQyNH0.f1hT0B68mv2lxVsQldk3ABx_0yBBUK2t1fcRHWGhmyM";
 
 const client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+/* ========= ELEMENTS ========= */
 const messageEl = document.getElementById("message");
 const infoEl = document.getElementById("info");
 const slotActions = document.getElementById("slotActions");
-const registerBtn = document.getElementById("registerBtn");
-const loginUserBtn = document.getElementById("loginUserBtn");
+const releaseBtn = document.getElementById("releaseBtn");
 
+let heartbeat = null;
+let sessionId = null;
+let sessionKey = null;
 
-/* =====================================================
-   SLOT MODE — SAME FILE, ONLY SESSION FIX
-===================================================== */
+const now = () => Math.floor(Date.now()/1000);
+const showError = (m)=>{messageEl.textContent=m;messageEl.className="error";};
+const stopHeartbeat = ()=>{ if(heartbeat) clearInterval(heartbeat); };
 
 window.addEventListener("load", async ()=>{
 
   const params = new URLSearchParams(location.search);
   const device = params.get("device");
-  const slot   = parseInt(params.get("slot"),10);
+  const slot = parseInt(params.get("slot"),10);
 
-  if(!device || !slot){
-    messageEl.textContent="Scan QR first.";
+  if(!device || Number.isNaN(slot)){
+    showError("Invalid QR.");
     return;
   }
 
-  infoEl.textContent=`Device: ${device} | Slot: ${slot}`;
+  infoEl.textContent = `Device: ${device} | Slot: ${slot}`;
 
-  /* =================================================
-     ✅ FIX: GET SAME SESSION FIRST (reuse)
-  ================================================= */
-
-  const key = `session_${device}_${slot}`;
-  let sessionId = localStorage.getItem(key);
-
-  if(!sessionId){
-    sessionId = crypto.randomUUID();
-    localStorage.setItem(key, sessionId);
-  }
-
-  /* =================================================
-     LOCK USING SAME SESSION ID (NOT tempSession)
-  ================================================= */
-
-  const { data: allowed } = await client.rpc("try_acquire_lock", {
-    target_device: device,
-    target_slot: slot,
-    new_session_id: sessionId,
-    timeout_seconds: 60
-  });
-
-  if(!allowed){
-    messageEl.textContent="Slot is occupied.";
-    messageEl.classList.add("error");
-    return;
-  }
-
-  /* =================================================
-     insert only if first time
-  ================================================= */
-
-  const { data } = await client
-    .from("sessions")
-    .select("id")
-    .eq("session_id", sessionId)
+  /* ========= STEP 1: PHYSICAL OCCUPIED ========= */
+  const { data: rack } = await client
+    .from("rack_sessions")
+    .select("status")
+    .eq("device_uuid", device)
+    .eq("slot", slot)
+    .eq("status", 1)
     .limit(1);
 
-  if(!data.length){
-    await client.from("sessions").insert([{
+  if(rack.length){
+    showError("Slot is occupied.");
+    return;
+  }
+
+  /* ========= STEP 2: ACTIVE SESSION CHECK ========= */
+  const { data: active } = await client
+    .from("sessions")
+    .select("session_id,last_seen")
+    .eq("device_uuid", device)
+    .eq("slot", slot)
+    .gt("last_seen", now()-60)
+    .limit(1);
+
+  sessionKey = `session_${device}_${slot}`;
+  sessionId = localStorage.getItem(sessionKey);
+
+  if(active.length){
+    if(active[0].session_id !== sessionId){
+      showError("Slot is in use.");
+      return;
+    }
+  }
+  else{
+    /* ========= STEP 3: CREATE NEW SESSION ========= */
+    sessionId = crypto.randomUUID();
+
+    const { error } = await client.from("sessions").insert([{
       device_uuid: device,
       slot,
       session_id: sessionId,
-      last_seen: Math.floor(Date.now()/1000)
+      last_seen: now()
     }]);
+
+    if(error){
+      showError("Slot is in use.");
+      return;
+    }
+
+    localStorage.setItem(sessionKey, sessionId);
   }
 
-  /* ================================================= */
-
-  messageEl.textContent=`Rack Ready - Slot ${slot}`;
+  /* ========= ALLOW ========= */
+  messageEl.textContent = `Rack Ready - Slot ${slot}`;
   slotActions.classList.remove("hidden");
 
-  /* heartbeat (update only) */
-  setInterval(async()=>{
-    await client
-      .from("sessions")
-      .update({
-        last_seen: Math.floor(Date.now()/1000)
-      })
+  /* ========= HEARTBEAT ========= */
+  heartbeat = setInterval(()=>{
+    client.from("sessions")
+      .update({ last_seen: now() })
       .eq("session_id", sessionId);
   },15000);
 
-  registerBtn.onclick=()=>{
-    location.href=`register.html?device=${device}&slot=${slot}`;
-  };
-
-  loginUserBtn.onclick=()=>startLogin(device,slot);
 });
 
 
-/* =====================================================
-   LOGIN (UNCHANGED — 100% same as yours)
-===================================================== */
+/* ========= RELEASE ========= */
+releaseBtn.onclick = async ()=>{
+  stopHeartbeat();
 
-let loginPollTimer=null;
+  await client
+    .from("sessions")
+    .delete()
+    .eq("session_id", sessionId);
 
-async function startLogin(device,slot){
+  localStorage.removeItem(sessionKey);
 
-  messageEl.textContent="Please scan fingerprint to login...";
+  messageEl.textContent="Slot Released ✔";
+  slotActions.classList.add("hidden");
+};
 
-  const {data,error}=await client
-    .from("rack_sessions")
-    .insert([{
-      device_uuid:device,
-      slot,
-      user_id:null,
-      timein:null,
-      timeout:null,
-      status:0
-    }])
-    .select()
-    .single();
 
-  if(error){
-    messageEl.textContent=error.message;
-    return;
-  }
-
-  pollLogin(data.id,device,slot);
-}
-
-async function pollLogin(id,device,slot){
-
-  const {data}=await client
-    .from("rack_sessions")
-    .select("status,user_id")
-    .eq("id",id)
-    .single();
-
-  if(data.status===0){
-    loginPollTimer=setTimeout(()=>pollLogin(id,device,slot),2000);
-    return;
-  }
-
-  if(data.status===1){
-    clearTimeout(loginPollTimer);
-    location.href=`login.html?device=${device}&slot=${slot}&id=${data.user_id}`;
-  }
-}
+/* ========= CLEANUP ========= */
+document.addEventListener("visibilitychange", ()=>{
+  if(document.hidden) stopHeartbeat();
+});
 </script>
 
 </body>
