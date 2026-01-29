@@ -37,7 +37,6 @@
 <div id="slotActions" class="hidden">
   <button id="registerBtn">Register</button>
   <button id="loginUserBtn">Login</button>
-  <button id="releaseBtn">Release Slot</button>
 </div>
 
 <!-- MODALS -->
@@ -201,11 +200,9 @@ async function pollLogin(id){
   }
 }
 
-releaseBtn.onclick = async ()=>{
-  stopHeartbeat(); clearTimeout(loginPollTimer);
-  await client.from("sessions").delete().eq("session_id", sessionId);
-  localStorage.removeItem(sessionKey); sessionId = null;
-  messageEl.textContent = "Slot Released ✔"; slotActions.classList.add("hidden"); visitorActions.classList.remove("hidden");
+/* ========= REGISTER BUTTON HANDLER (SLOT MODE) ========= */
+registerBtn.onclick = () => {
+  window.location.href = `register.html?device=${currentDevice}&slot=${currentSlot}`;
 };
 
 document.addEventListener("visibilitychange", () => {
