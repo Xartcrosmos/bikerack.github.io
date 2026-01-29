@@ -196,9 +196,6 @@ async function pollLogin(id){
   else if(data.status === 1) window.location.href = `login.html?device=${currentDevice}&slot=${currentSlot}&id=${data.user_id}`;
   else if(data.status === 2){ 
     alert("Fingerprint not recognized."); 
-    // Re-enable buttons so they can try again or release
-    loginUserBtn.disabled = false; 
-    registerBtn.disabled = false;
     await client.from("rack_sessions").update({ status: 0 }).eq("id", id); 
     pollLogin(id); 
   }
