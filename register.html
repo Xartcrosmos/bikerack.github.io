@@ -102,7 +102,8 @@
         case 1: statusMsg.textContent = "Scan fingerprint again..."; break;
         case 2:
           statusMsg.className = "msg error";
-          alert("Fingerprint already existed. Please try again.");
+          alert("Fingerprint already existed, error was found. Please try again.");
+          await client.from("registration").update({ status: 0 }).eq("id", data.id);
           return; 
         case 3: 
           statusMsg.className = "msg success";
