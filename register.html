@@ -104,12 +104,7 @@
         case 2:
           statusMsg.className = "msg error";
           alert("Fingerprint already existed, error was found. Please try again.");
-          
-          // 2. NOW data.id ACTUALLY EXISTS
           await client.from("registration").update({ status: 0 }).eq("id", id); 
-          
-          // 3. OPTIONAL: Unlock button so they can fix their name if they want
-          submitBtn.disabled = false; 
           break;
           
         case 3: 
