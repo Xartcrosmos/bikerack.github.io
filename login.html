@@ -48,17 +48,17 @@
       logoutBtn.classList.add("hidden");
     } else {
       // --- NEW: Fetch User Name ---
-      const { data: user, error } = await client
-        .from("registration") // CHANGE: Use your 'registration' table name
-        .select("name")      // CHANGE: Select the 'name' column
-        .eq("id", userId)
-        .maybeSingle();
-
-      if (user) {
-        userName = user.name; // Assign the retrieved name
+      const { data: user, error: nameError } = await client
+      .from("registration")
+      .select("name")
+      .eq("id", userId)
+      .maybeSingle();
+    
+      if (nameError) console.error("Error fetching name:", nameError.message);
+      
+      if (user && user.name) {
+        userName = user.name; 
       }
-      // ----------------------------
-
       // --- UPDATED DISPLAY ---
       userDetailsEl.innerHTML = `
         <strong>Name:</strong> ${userName}<br>
