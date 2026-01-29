@@ -4,29 +4,11 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>BikeRack Registration</title>
-
-  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
-
+  <script src="https://unpkg.com"></script>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      text-align: center;
-      margin-top: 60px;
-    }
-
-    input {
-      padding: 8px;
-      margin: 6px;
-      font-size: 15px;
-      width: 220px;
-    }
-
-    button {
-      padding: 10px 20px;
-      margin-top: 10px;
-      cursor: pointer;
-    }
-
+    body { font-family: Arial, sans-serif; text-align: center; margin-top: 60px; }
+    input { padding: 8px; margin: 6px; font-size: 15px; width: 220px; }
+    button { padding: 10px 20px; margin-top: 10px; cursor: pointer; }
     .hidden { display:none; }
     .msg { margin-top:15px; font-weight:bold; }
     .error { color:red; }
@@ -37,7 +19,6 @@
 <body>
 
   <h2 id="title">Preparing registration...</h2>
-
   <div id="formBox" class="hidden">
     <input id="nameInput" placeholder="Your Name" />
     <br/>
@@ -45,13 +26,11 @@
     <br/>
     <button id="submitBtn">Submit & Scan Fingerprint</button>
   </div>
-
   <div id="statusMsg" class="msg muted"></div>
 
   <script>
     const SUPABASE_URL = "https://lguyiavotyrxdlyhsvmz.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxndXlpYXZvdHlyeGRseWhzdm16Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkxNzQ0MjQsImV4cCI6MjA4NDc1MDQyNH0.f1hT0B68mv2lxVsQldk3ABx_0yBBUK2t1fcRHWGhmyM";
-
     const client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     const titleEl = document.getElementById("title");
@@ -59,173 +38,106 @@
     const statusMsg = document.getElementById("statusMsg");
     const submitBtn = document.getElementById("submitBtn");
 
-    let pollTimer = null;
+    let pollTimer = null, heartbeat = null, sessionId = null, currentDevice = null, currentSlot = null, currentName = null, currentContact = null;
+
+    const now = () => Math.floor(Date.now() / 1000);
+    const stopHeartbeat = ()=>{ if(heartbeat) clearInterval(heartbeat); };
+
+    /* ========= HEARTBEAT LOGIC (FIXED: Uses UPDATE) ========= */
+    const runHeartbeat = async () => {
+      if(!sessionId) return;
+      await client.from("sessions").update({ last_seen: now() }).eq("session_id", sessionId);
+    };
+    const startHeartbeat = () => { stopHeartbeat(); runHeartbeat(); heartbeat = setInterval(runHeartbeat, 15000); };
 
     window.onload = async () => {
-
-      /* ============================
-         1️⃣ Validate URL + session
-      ============================ */
       const params = new URLSearchParams(window.location.search);
-      const device = params.get("device");
-      const slot = parseInt(params.get("slot"));
-      const sessionId = localStorage.getItem("session_id");
+      currentDevice = params.get("device");
+      currentSlot = parseInt(params.get("slot"));
+      sessionId = localStorage.getItem(`session_${currentDevice}_${currentSlot}`);
 
-      if (!device || !slot || !sessionId) {
+      if (!currentDevice || !currentSlot || !sessionId) {
         window.location.href = "index.html";
         return;
       }
+      
+      /* Cleanup old pending rows in RACK_SESSIONS table */
+      await client.from("rack_sessions").delete().eq("device_uuid", currentDevice).eq("slot", currentSlot).eq("status", 0);
 
-
-      /* ============================
-         2️⃣ Re-check lock
-      ============================ */
-      const { data: allowed } = await client.rpc("try_acquire_lock", {
-        target_device: device,
-        target_slot: slot,
-        new_session_id: sessionId,
-        timeout_seconds: 60
-      });
-
-      if (!allowed) {
-        titleEl.textContent = "Session expired. Returning...";
-        setTimeout(() => window.location.href = `index.html?device=${device}&slot=${slot}`, 1500);
-        return;
-      }
-
-
-      /* ============================
-         2.5️⃣ Cleanup old pending rows
-      ============================ */
-      await client
-        .from("registration")
-        .delete()
-        .eq("device_uuid", device)
-        .eq("slot", slot)
-        .eq("status", 0);
-
-
-      /* ============================
-         3️⃣ Show form
-      ============================ */
-      titleEl.textContent = `Registering for Slot ${slot}`;
+      titleEl.textContent = `Registering for Slot ${currentSlot}`;
       formBox.classList.remove("hidden");
+      startHeartbeat(); // Use the corrected heartbeat
 
-
-      /* ============================
-         4️⃣ Heartbeat (keep alive)
-      ============================ */
-      setInterval(async () => {
-        await client.from("sessions").insert([{
-          device_uuid: device,
-          slot,
-          session_id: sessionId,
-          last_seen: Math.floor(Date.now() / 1000)
-        }]);
-      }, 15000);
-
-
-      /* ============================
-         5️⃣ Submit registration
-      ============================ */
       submitBtn.onclick = async () => {
-
-        const name = document.getElementById("nameInput").value.trim();
-        const contact = document.getElementById("contactInput").value.trim();
-
-        if (!name || !contact) return;
-
+        currentName = document.getElementById("nameInput").value.trim();
+        currentContact = document.getElementById("contactInput").value.trim();
+        if (!currentName || !currentContact) return;
         submitBtn.disabled = true;
-
         statusMsg.className = "msg muted";
         statusMsg.textContent = "Waiting for fingerprint...";
 
-        await client.from("registration").insert([{
-          device_uuid: device,
-          slot,
-          name,
-          contact,
-          fingerid: null,
+        // Insert request into the RACK_SESSIONS table (hardware reads this)
+        await client.from("rack_sessions").insert([{
+          device_uuid: currentDevice,
+          slot: currentSlot,
           status: 0
         }]);
 
-        pollStatus(device, slot);
+        pollStatus(); // Start polling RACK_SESSIONS
       };
     };
-
 
     /* ==================================
        6️⃣ Poll hardware status
     ================================== */
-    async function pollStatus(device, slot) {
+    async function pollStatus() {
+      const { data } = await client.from("rack_sessions").select("*")
+        .eq("device_uuid", currentDevice).eq("slot", currentSlot)
+        .order("created_at", { ascending: false }).limit(1).maybeSingle();
 
-      const { data } = await client
-        .from("registration")
-        .select("*")
-        .eq("device_uuid", device)
-        .eq("slot", slot)
-        .order("created_at", { ascending: false })
-        .limit(1);
+      if (!data) { pollTimer = setTimeout(() => pollStatus(), 2000); return; }
 
-      if (!data || data.length === 0) {
-        pollTimer = setTimeout(() => pollStatus(device, slot), 2000);
-        return;
-      }
-
-      const record = data[0];
-
-      switch (record.status) {
-
-        /* waiting */
-        case 0:
-          statusMsg.className = "msg muted";
-          statusMsg.textContent = "Waiting for fingerprint...";
-          break;
-
-        /* scan again */
-        case 1:
-          statusMsg.className = "msg muted";
-          statusMsg.textContent = "Scan fingerprint again...";
-          break;
-
-        /* duplicate/error → retry */
+      switch (data.status) {
+        case 0: statusMsg.textContent = "Waiting for fingerprint..."; break;
+        case 1: statusMsg.textContent = "Scan fingerprint again..."; break;
         case 2:
           statusMsg.className = "msg error";
-
-          // Wait for user confirmation first (alert is blocking)
           alert("Fingerprint already existed, error was found. Please try again.");
-
-          // AFTER user clicks OK → reset status back to 0
-          await client
-            .from("registration")
-            .update({ status: 0 })
-            .eq("id", record.id);
-
+          await client.from("rack_sessions").update({ status: 0 }).eq("id", data.id);
           statusMsg.textContent = "Waiting for fingerprint...";
           break;
-
-        /* success */
-        case 3:
+        case 3: // Success is status 3
           statusMsg.className = "msg success";
           statusMsg.textContent = "Registration successful! Redirecting...";
-        
           clearTimeout(pollTimer);
-        
-          setTimeout(() => {
-            window.location.href = `index.html?device=${device}&slot=${slot}`;
-          }, 1500);
-        
-          return;
 
-        /* deleted/ignored */
-        case 4:
-          clearTimeout(pollTimer);
+          // Insert final data into the actual REGISTRATION table now
+          const { error: regError } = await client.from("registration").insert([{
+              name: currentName,
+              contact: currentContact,
+              fingerid: data.fingerid, // Assuming hardware returns the fingerid here
+              claimed_uuid: currentDevice // Link user to the device they claimed
+          }]);
+
+          if (regError) {
+              console.error("Final registration insert failed:", regError);
+              alert("Final registration failed. Please contact admin.");
+          } else {
+              setTimeout(() => {
+                window.location.href = `index.html?device=${currentDevice}&slot=${currentSlot}`;
+              }, 1500);
+          }
           return;
+        case 4: clearTimeout(pollTimer); return;
       }
-
-      pollTimer = setTimeout(() => pollStatus(device, slot), 2000);
+      pollTimer = setTimeout(() => pollStatus(), 2000);
     }
-  </script>
 
+    /* Add resume logic for heartbeat */
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) stopHeartbeat();
+      else if (sessionId) startHeartbeat(); 
+    });
+  </script>
 </body>
 </html>
