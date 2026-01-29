@@ -38,22 +38,6 @@
     const device = params.get("device");
     const slot = params.get("slot");
     const userId = params.get("id");
-
-    //---------------------------------------------------------------
-    try {
-      const { data: user, error } = await client
-        .from("registration")
-        .select("name")
-        .eq("id", Number(userId))
-        .maybeSingle();
-
-      if (error) throw error;
-          document.getElementById("userDetails").innerHTML = `<strong>Name:</strong> ${user?.name || 'N/A'}<br>...`;
-        } catch (err) {
-          console.error("Critical API Error:", err.message);
-          document.getElementById("message").textContent = "API Error: " + err.message;
-        }
-    //---------------------------------------------------------------
     
     let userName = "N/A";
     
