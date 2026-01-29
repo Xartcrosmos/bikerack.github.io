@@ -192,14 +192,39 @@ async function pollLogin(id){
   const { data } = await client.from("rack_sessions").select("status, user_id").eq("id", id).single();
   if(!data) return;
   if(data.status === 0) loginPollTimer = setTimeout(() => pollLogin(id), 2000);
-  else if(data.status === 1) window.location.href = `login.html?device=${currentDevice}&slot=${currentSlot}&id=${data.user_id}`;
-  else if(data.status === 2){ 
+  if(data.status === 1) {
+    clearTimeout(loginPollTimer);
+    const userId = data.user_id;
+    // 1. Get the Admin ID linked to this User ID
+    const { data: userReg } = await client .from("registration") .select("admin_id") .eq("id", userId) .maybeSingle();
+      if (!userReg || !userReg.admin_id) {
+        alert("No valid user registration found. Please register.");
+        // Unlock buttons, delete the pending row, and stop login flow
+        loginUserBtn.disabled = false;
+        registerBtn.disabled = false;
+        await client.from("rack_sessions").delete().eq("id", id);
+        return; 
+      }
+    // 2. Check if the CURRENT DEVICE UUID belongs to that Admin
+    const { data: ownedUnit } = await client .from("device_unit") .select("uuid") .eq("admin_id", userReg.admin_id) .eq("uuid", currentDevice) .maybeSingle();
+      if (!ownedUnit) {
+        alert("This unit is not part of your registered fleet. Access denied.");
+        loginUserBtn.disabled = false;
+        registerBtn.disabled = false;
+        await client.from("rack_sessions").delete().eq("id", id);
+        return;
+      }
+    // --- END SECURITY CHECK ---
+      window.location.href = `login.html?device=${currentDevice}&slot=${currentSlot}&id=${userId}`;
+      return;
+    
+  } else if(data.status === 2){ 
     alert("Fingerprint not recognized."); 
     await client.from("rack_sessions").update({ status: 0 }).eq("id", id); 
     pollLogin(id); 
   }
 }
-
+  
 /* ========= REGISTER BUTTON HANDLER (SLOT MODE) ========= */
 registerBtn.onclick = () => {
   window.location.href = `register.html?device=${currentDevice}&slot=${currentSlot}`;
