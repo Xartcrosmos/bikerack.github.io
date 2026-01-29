@@ -212,6 +212,11 @@ async function pollLogin(id){
         return;
       }
     // --- END SECURITY CHECK ---
+     await client
+      .from("sessions")
+      .update({ user_id: userId }) // Add this column to your sessions table!
+      .eq("session_id", sessionId);
+    
       window.location.href = `login.html?device=${currentDevice}&slot=${currentSlot}&id=${userId}`;
       return;
     
