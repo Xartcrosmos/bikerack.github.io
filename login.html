@@ -46,19 +46,7 @@
       userDetailsEl.textContent = "Missing required parameters.";
       logoutBtn.classList.add("hidden");
     } else {
-      // --- ANTI-CHEAT CHECK ---
-    const { data: check } = await client
-      .from("rack_sessions")
-      .select("id")
-      .match({ device_uuid: device, slot: slot, user_id: userId, status: 1 })
-      .maybeSingle();
-
-    if (!check) {
-      messageEl.textContent = "Security Error";
-      userDetailsEl.innerHTML = "<b style='color:red;'>Access Denied:</b> Session mismatch.";
-      logoutBtn.classList.add("hidden");
-      return; // This stops your existing code from executing
-    }
+      
       // --- NEW: Fetch User Name ---
       const { data: user, error: nameError } = await client
       .from("registration")
