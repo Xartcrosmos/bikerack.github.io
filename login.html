@@ -51,7 +51,7 @@
       const { data: user, error: nameError } = await client
       .from("registration")
       .select("name")
-      .eq("id", userId)
+      .eq("id", Number(userId))
       .maybeSingle();
     
       if (nameError) console.error("Error fetching name:", nameError.message);
