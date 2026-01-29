@@ -93,18 +93,25 @@
     };
 
     async function pollStatus(id) {
-      const { data } = await client.from("registration").select("status").eq("id", id).single();
-
+      // 1. ADD "id" TO THE SELECT
+      const { data } = await client.from("registration").select("id, status").eq("id", id).single();
+    
       if (!data) return;
-
+    
       switch (data.status) {
         case 0: statusMsg.textContent = "Waiting for fingerprint..."; break;
         case 1: statusMsg.textContent = "Scan fingerprint again..."; break;
         case 2:
           statusMsg.className = "msg error";
           alert("Fingerprint already existed, error was found. Please try again.");
-          await client.from("registration").update({ status: 0 }).eq("id", data.id);
+          
+          // 2. NOW data.id ACTUALLY EXISTS
+          await client.from("registration").update({ status: 0 }).eq("id", id); 
+          
+          // 3. OPTIONAL: Unlock button so they can fix their name if they want
+          submitBtn.disabled = false; 
           break;
+          
         case 3: 
           statusMsg.className = "msg success";
           statusMsg.textContent = "Registration successful! Redirecting...";
