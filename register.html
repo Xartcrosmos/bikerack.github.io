@@ -38,12 +38,11 @@
     const statusMsg = document.getElementById("statusMsg");
     const submitBtn = document.getElementById("submitBtn");
 
-    let pollTimer = null, heartbeat = null, sessionId = null, currentDevice = null, currentSlot = null, currentName = null, currentContact = null;
+    let pollTimer = null, heartbeat = null, sessionId = null, currentDevice = null, currentSlot = null;
 
     const now = () => Math.floor(Date.now() / 1000);
     const stopHeartbeat = ()=>{ if(heartbeat) clearInterval(heartbeat); };
 
-    /* ========= HEARTBEAT LOGIC (FIXED: Uses UPDATE) ========= */
     const runHeartbeat = async () => {
       if(!sessionId) return;
       await client.from("sessions").update({ last_seen: now() }).eq("session_id", sessionId);
@@ -61,81 +60,64 @@
         return;
       }
       
-      /* Cleanup old pending rows in table */
       await client.from("registration").delete().eq("device_uuid", currentDevice).eq("slot", currentSlot).eq("status", 0);
 
       titleEl.textContent = `Registering for Slot ${currentSlot}`;
       formBox.classList.remove("hidden");
-      startHeartbeat(); // Use the corrected heartbeat
+      startHeartbeat();
 
       submitBtn.onclick = async () => {
-        currentName = document.getElementById("nameInput").value.trim();
-        currentContact = document.getElementById("contactInput").value.trim();
-        if (!currentName || !currentContact) return;
+        const name = nameInput.value.trim();
+        const contact = contactInput.value.trim();
+        if (!name || !contact) return;
         submitBtn.disabled = true;
         statusMsg.className = "msg muted";
         statusMsg.textContent = "Waiting for fingerprint...";
 
-        // Insert request into the table (hardware reads this)
-        await client.from("registration").insert([{
+        const { data, error } = await client.from("registration").insert([{
           device_uuid: currentDevice,
           slot: currentSlot,
-          name: currentName,
-          contact: currentContact,
+          name: name,
+          contact: contact,
           status: 0
-        }]);
+        }]).select().single();
 
-        pollStatus(); // Start polling 
+        if(error) {
+          submitBtn.disabled = false;
+          statusMsg.textContent = "Error: " + error.message;
+          return;
+        }
+
+        pollStatus(data.id); 
       };
     };
 
-    /* ==================================
-       6️⃣ Poll hardware status
-    ================================== */
-    async function pollStatus() {
-      const { data } = await client.from("registration").select("*")
-        .eq("device_uuid", currentDevice).eq("slot", currentSlot)
-        .order("created_at", { ascending: false }).limit(1).maybeSingle();
+    async function pollStatus(id) {
+      const { data } = await client.from("registration").select("status").eq("id", id).single();
 
-      if (!data) { pollTimer = setTimeout(() => pollStatus(), 2000); return; }
+      if (!data) return;
 
       switch (data.status) {
         case 0: statusMsg.textContent = "Waiting for fingerprint..."; break;
         case 1: statusMsg.textContent = "Scan fingerprint again..."; break;
         case 2:
           statusMsg.className = "msg error";
-          alert("Fingerprint already existed, error was found. Please try again.");
-          await client.from("registration").update({ status: 0 }).eq("id", data.id);
-          statusMsg.textContent = "Waiting for fingerprint...";
-          break;
-        case 3: // Success is status 3
+          alert("Fingerprint already existed. Please try again.");
+          submitBtn.disabled = false;
+          return; 
+        case 3: 
           statusMsg.className = "msg success";
           statusMsg.textContent = "Registration successful! Redirecting...";
           clearTimeout(pollTimer);
-
-          // Insert final data into the actual REGISTRATION table now
-          const { error: regError } = await client.from("registration").insert([{
-              name: currentName,
-              contact: currentContact,
-              fingerid: data.fingerid, // Assuming hardware returns the fingerid here
-              claimed_uuid: currentDevice // Link user to the device they claimed
-          }]);
-
-          if (regError) {
-              console.error("Final registration insert failed:", regError);
-              alert("Final registration failed. Please contact admin.");
-          } else {
-              setTimeout(() => {
-                window.location.href = `index.html?device=${currentDevice}&slot=${currentSlot}`;
-              }, 1500);
-          }
+          setTimeout(() => {
+            window.location.href = `index.html?device=${currentDevice}&slot=${currentSlot}`;
+          }, 1500);
           return;
         case 4: clearTimeout(pollTimer); return;
       }
-      pollTimer = setTimeout(() => pollStatus(), 2000);
+      pollTimer = setTimeout(() => pollStatus(id), 2000);
     }
 
-    /* Add resume logic for heartbeat */
     document.addEventListener("visibilitychange", () => {
       if (document.hidden) stopHeartbeat();
       else if (sessionId) startHeartbeat(); 
