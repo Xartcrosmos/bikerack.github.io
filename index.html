@@ -94,6 +94,11 @@ window.addEventListener("load", async ()=>{
   visitorActions.classList.add("hidden");
   infoEl.textContent = `Device: ${currentDevice} | Slot: ${currentSlot}`;
 
+  // --- NEW: CLAIMED VALIDATION ---
+  const { data: unit } = await client.from("device_unit").select("status").eq("uuid", currentDevice).maybeSingle();
+  if (!unit || unit.status !== "claimed") return showError("This device is not activated. Please contact admin.");
+  // -------------------------------
+
   const { data: rack } = await client.from("rack_sessions").select("status").eq("device_uuid", currentDevice).eq("slot", currentSlot).eq("status", 1).maybeSingle();
   if (rack) return showError("Slot is physically occupied.");
 
@@ -111,6 +116,7 @@ window.addEventListener("load", async ()=>{
   messageEl.textContent = `Rack Ready - Slot ${currentSlot}`;
   startHeartbeat();
 });
+
 
 /* ========= VISITOR / ADMIN ACTIONS ========= */
 visitorLoginBtn.onclick=()=>openModal("loginModal");
