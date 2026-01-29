@@ -1,226 +1,194 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BikeRack Slot Access</title>
-
-<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
-
-<style>
-body{font-family:Arial;text-align:center;margin-top:100px}
-button{padding:12px 25px;margin:8px;font-size:16px;cursor:pointer}
-.hidden{display:none}
-.error{color:red}
-.muted{color:#777;font-size:14px}
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BikeRack Slot Access</title>
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <style>
+    body{font-family:Arial;text-align:center;margin-top:100px}
+    button{padding:12px 25px;margin:8px;font-size:16px;cursor:pointer}
+    .hidden{display:none}
+    .error{color:red}
+    .muted{color:#777;font-size:14px}
+    .link{color:#2563eb;cursor:pointer;text-decoration:underline;font-size:14px}
+    .modal{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;justify-content:center;align-items:center;z-index:100}
+    .modal.hidden{display:none}
+    .modal-box{background:white;padding:20px;border-radius:10px;width:300px}
+    .modal-box input{width:90%;padding:8px;margin:6px 0}
+    .modal-msg{min-height:18px;margin-bottom:8px;font-size:13px}
+  </style>
 </head>
 <body>
 
 <h2 id="message">Welcome to Smart BikeRack</h2>
 <div id="info" class="muted"></div>
 
+<!-- VISITOR ACTIONS (Visible if no device/slot in URL) -->
+<div id="visitorActions">
+  <button id="visitorLoginBtn">Admin Login</button>
+  <div class="muted">
+    You don't have an account?
+    <span id="claimLink" class="link">Claim your BikeRack unit now.</span>
+  </div>
+</div>
+
+<!-- SLOT ACTIONS (Visible if device/slot in URL) -->
 <div id="slotActions" class="hidden">
   <button id="registerBtn">Register</button>
   <button id="loginUserBtn">Login</button>
   <button id="releaseBtn">Release Slot</button>
 </div>
 
+<!-- MODALS -->
+<div id="claimModal" class="modal hidden"><div class="modal-box"><h3>Claim Device</h3><div class="modal-msg muted"></div><input id="uuidInput" placeholder="Device UUID"/><input id="otcInput" placeholder="OTC Code"/><button id="claimBtn">Next</button><button id="cancelClaim">Cancel</button></div></div>
+<div id="createModal" class="modal hidden"><div class="modal-box"><h3>Create Admin Account</h3><div class="modal-msg muted"></div><input id="emailInput" placeholder="Email"/><input id="passInput" type="password" placeholder="Password"/><button id="createBtn">Register</button><button id="cancelCreate">Cancel</button></div></div>
+<div id="otpModal" class="modal hidden"><div class="modal-box"><h3>Email Verification</h3><div class="modal-msg muted"></div><input id="otpInput" placeholder="Enter OTP"/><button id="otpVerifyBtn">Verify</button></div></div>
+<div id="loginModal" class="modal hidden"><div class="modal-box"><h3>Admin Login</h3><div class="modal-msg muted"></div><input id="loginEmail" placeholder="Email"/><input id="loginPass" type="password" placeholder="Password"/><button id="loginBtn">Login</button><button id="cancelLogin">Cancel</button></div></div>
+
 <script>
 /* ========= CONFIG ========= */
 const SUPABASE_URL = "https://lguyiavotyrxdlyhsvmz.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxndXlpYXZvdHlyeGRseWhzdm16Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkxNzQ0MjQsImV4cCI6MjA4NDc1MDQyNH0.f1hT0B68mv2lxVsQldk3ABx_0yBBUK2t1fcRHWGhmyM";
-
 const client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 /* ========= ELEMENTS ========= */
 const messageEl = document.getElementById("message");
 const infoEl = document.getElementById("info");
+const visitorActions = document.getElementById("visitorActions");
 const slotActions = document.getElementById("slotActions");
-const releaseBtn = document.getElementById("releaseBtn");
-const registerBtn = document.getElementById("registerBtn");
-const loginUserBtn = document.getElementById("loginUserBtn");
-
-let heartbeat = null;
-let loginPollTimer = null;
-let sessionId = null;
-let sessionKey = null;
-let currentDevice = null;
-let currentSlot = null;
+let heartbeat = null, loginPollTimer = null, sessionId = null, sessionKey = null, currentDevice = null, currentSlot = null;
 
 const now = () => Math.floor(Date.now()/1000);
 const showError = (m)=>{messageEl.textContent=m;messageEl.className="error";};
 const stopHeartbeat = ()=>{ if(heartbeat) clearInterval(heartbeat); };
 
-/* ========= HEARTBEAT LOGIC ========= */
+/* ========= MODAL HELPERS ========= */
+function openModal(id){document.getElementById(id).classList.remove("hidden");}
+function closeModal(id){document.getElementById(id).classList.add("hidden");}
+function showMsg(text,isErr){
+  const el=document.querySelector('.modal:not(.hidden) .modal-msg');
+  if(el){ el.textContent=text; el.className='modal-msg '+(isErr?'error':'muted'); }
+}
+
+/* ========= SLOT LOGIC (HEARTBEAT) ========= */
 const runHeartbeat = async () => {
   if(!sessionId) return;
-  const { error } = await client
-    .from("sessions")
-    .update({ last_seen: now() })
-    .eq("session_id", sessionId);
-  
-  if (error) console.error("Heartbeat Failed:", error.message);
-  else console.log("Heartbeat Sync: " + new Date().toLocaleTimeString());
+  await client.from("sessions").update({ last_seen: now() }).eq("session_id", sessionId);
 };
 
-const startHeartbeat = () => {
-  stopHeartbeat();
-  runHeartbeat(); 
-  heartbeat = setInterval(runHeartbeat, 15000);
-};
+const startHeartbeat = () => { stopHeartbeat(); runHeartbeat(); heartbeat = setInterval(runHeartbeat, 15000); };
 
-/* ========= INITIAL LOAD & LOCK ========= */
+/* ========= MAIN INIT ========= */
 window.addEventListener("load", async ()=>{
   const params = new URLSearchParams(location.search);
   currentDevice = params.get("device");
   currentSlot = parseInt(params.get("slot"), 10);
 
   if(!currentDevice || Number.isNaN(currentSlot)){
-    showError("Invalid QR.");
+    messageEl.textContent = "Welcome! Please scan a QR code to use a slot.";
+    visitorActions.classList.remove("hidden");
     return;
   }
 
+  visitorActions.classList.add("hidden");
   infoEl.textContent = `Device: ${currentDevice} | Slot: ${currentSlot}`;
 
-  // Check physical occupancy
-  const { data: rack } = await client
-    .from("rack_sessions")
-    .select("status")
-    .eq("device_uuid", currentDevice)
-    .eq("slot", currentSlot)
-    .eq("status", 1)
-    .maybeSingle();
+  const { data: rack } = await client.from("rack_sessions").select("status").eq("device_uuid", currentDevice).eq("slot", currentSlot).eq("status", 1).maybeSingle();
+  if (rack) return showError("Slot is physically occupied.");
 
-  if (rack) {
-    showError("Slot is physically occupied.");
-    return;
-  }
-
-  // Session Lock Logic
   sessionKey = `session_${currentDevice}_${currentSlot}`;
   sessionId = localStorage.getItem(sessionKey) || crypto.randomUUID();
 
-  const { data: active } = await client
-    .from("sessions")
-    .select("session_id")
-    .eq("device_uuid", currentDevice)
-    .eq("slot", currentSlot)
-    .gt("last_seen", now() - 60)
-    .maybeSingle();
+  const { data: active } = await client.from("sessions").select("session_id").eq("device_uuid", currentDevice).eq("slot", currentSlot).gt("last_seen", now() - 60).maybeSingle();
+  if (active && active.session_id !== sessionId) return showError("Slot is in use by another user.");
 
-  if (active && active.session_id !== sessionId) {
-    showError("Slot is in use by another user.");
-    return;
-  }
-
-  const { error: upsertErr } = await client
-    .from("sessions")
-    .upsert([{ 
-      device_uuid: currentDevice, 
-      slot: currentSlot, 
-      session_id: sessionId, 
-      last_seen: now() 
-    }], { onConflict: 'device_uuid, slot' });
-
-  if (upsertErr) {
-    showError("Could not start session.");
-    return;
-  }
+  const { error: upsertErr } = await client.from("sessions").upsert([{ device_uuid: currentDevice, slot: currentSlot, session_id: sessionId, last_seen: now() }], { onConflict: 'device_uuid, slot' });
+  if (upsertErr) return showError("Could not start session.");
 
   localStorage.setItem(sessionKey, sessionId);
-  messageEl.textContent = `Rack Ready - Slot ${currentSlot}`;
   slotActions.classList.remove("hidden");
+  messageEl.textContent = `Rack Ready - Slot ${currentSlot}`;
   startHeartbeat();
 });
 
-/* ========= LOGIN / FINGERPRINT LOGIC ========= */
-loginUserBtn.onclick = () => startLoginFlow(currentDevice, currentSlot);
-registerBtn.onclick = () => { messageEl.textContent = "Registration flow not implemented yet."; };
+/* ========= VISITOR / ADMIN ACTIONS ========= */
+visitorLoginBtn.onclick=()=>openModal("loginModal");
+claimLink.onclick=()=>openModal("claimModal");
+cancelClaim.onclick=()=>closeModal("claimModal");
+cancelCreate.onclick=()=>closeModal("createModal");
+cancelLogin.onclick=()=>closeModal("loginModal");
 
-async function startLoginFlow(device, slot){
-  messageEl.textContent = "Please scan fingerprint to login...";
-  
-  const { data, error } = await client
-    .from("rack_sessions")
-    .insert([{
-      device_uuid: device,
-      slot: slot,
-      user_id: null,
-      timein: null,
-      timeout: null,
-      status: 0
-    }])
-    .select()
-    .single();
-
-  if(error){
-    showError(error.message);
-    return;
-  }
-
-  pollLogin(data.id, device, slot);
-}
-
-async function pollLogin(id, device, slot){
-  const { data } = await client
-    .from("rack_sessions")
-    .select("status, user_id")
-    .eq("id", id)
-    .single();
-
-  if(!data) return;
-
-  if(data.status === 0){
-    loginPollTimer = setTimeout(() => pollLogin(id, device, slot), 2000);
-    return;
-  }
-
-  if(data.status === 1){
-    clearTimeout(loginPollTimer);
-    window.location.href = `login.html?device=${device}&slot=${slot}&id=${data.user_id}`;
-    return;
-  }
-
-  if(data.status === 2){
-    clearTimeout(loginPollTimer);
-    alert("Fingerprint not recognized. Please try again.");
-    await client.from("rack_sessions").update({ status: 0 }).eq("id", id);
-    pollLogin(id, device, slot);
-    return;
-  }
-
-  if(data.status === 3){
-    clearTimeout(loginPollTimer);
-    messageEl.textContent = "Session ended.";
-  }
-}
-
-/* ========= RELEASE ========= */
-releaseBtn.onclick = async ()=>{
-  stopHeartbeat();
-  clearTimeout(loginPollTimer);
-
-  await client
-    .from("sessions")
-    .delete()
-    .eq("session_id", sessionId);
-
-  localStorage.removeItem(sessionKey);
-  sessionId = null; // Prevent heartbeat resume
-  messageEl.textContent = "Slot Released ✔";
-  slotActions.classList.add("hidden");
+claimBtn.onclick=async()=>{
+  const uuid=uuidInput.value.trim(), otc=otcInput.value.trim();
+  if(!uuid||!otc) return showMsg("Enter UUID and OTC",true);
+  const {data}=await client.from("device_unit").select("*").eq("uuid",uuid).eq("otc",otc).maybeSingle();
+  if(!data) return showMsg("Invalid device",true);
+  if(data.status==="claimed") return showMsg("Already claimed",true);
+  window._claimUUID=uuid; closeModal("claimModal"); openModal("createModal");
 };
 
-/* ========= CLEANUP & RESUME ========= */
-document.addEventListener("visibilitychange", () => {
-  if (document.hidden) {
-    stopHeartbeat();
-  } else if (sessionId && !slotActions.classList.contains("hidden")) {
-    startHeartbeat();
+createBtn.onclick=async()=>{
+  const email=emailInput.value.trim(), pass=passInput.value.trim();
+  if(!email||!pass) return showMsg("Enter email and password",true);
+  const {data:existing}=await client.from("admins").select("*").eq("email",email).maybeSingle();
+  if(existing){
+    if(existing.password_hash!==pass) return showMsg("Email already linked. Use SAME password.",true);
+    await linkDevice(existing.id,email,pass); return;
   }
-});
+  const {error}=await client.auth.signInWithOtp({ email, options:{shouldCreateUser:true} });
+  if(error) return showMsg("Failed sending OTP",true);
+  window._pendingCreate={email,pass}; closeModal("createModal"); openModal("otpModal");
+};
 
+otpVerifyBtn.onclick=async()=>{
+  const code=otpInput.value.trim();
+  const {email,pass}=window._pendingCreate||{};
+  const {error}=await client.auth.verifyOtp({ email, token:code, type:'email' });
+  if(error) return showMsg("Invalid OTP",true);
+  const {data:newAdmin}=await client.from("admins").insert([{email,password_hash:pass}]).select().single();
+  await linkDevice(newAdmin.id,email,pass); closeModal("otpModal");
+};
+
+async function linkDevice(adminId,email,pass){
+  await client.from("device_unit").update({status:"claimed",admin_id:adminId}).eq("uuid",window._claimUUID);
+  openModal("loginModal"); loginEmail.value=email; loginPass.value=pass;
+}
+
+loginBtn.onclick=async()=>{
+  const email=loginEmail.value.trim(), pass=loginPass.value.trim();
+  const {data}=await client.from("admins").select("*").eq("email",email).eq("password_hash",pass).maybeSingle();
+  if(!data) return showMsg("Invalid login",true);
+  localStorage.setItem("admin_id",data.id); location.href="admin.html";
+};
+
+/* ========= FINGERPRINT LOGIN (SLOT) ========= */
+loginUserBtn.onclick = async () => {
+  messageEl.textContent = "Please scan fingerprint to login...";
+  const { data, error } = await client.from("rack_sessions").insert([{ device_uuid: currentDevice, slot: currentSlot, status: 0 }]).select().single();
+  if(error) return showError(error.message);
+  pollLogin(data.id);
+};
+
+async function pollLogin(id){
+  const { data } = await client.from("rack_sessions").select("status, user_id").eq("id", id).single();
+  if(!data) return;
+  if(data.status === 0) loginPollTimer = setTimeout(() => pollLogin(id), 2000);
+  else if(data.status === 1) window.location.href = `login.html?device=${currentDevice}&slot=${currentSlot}&id=${data.user_id}`;
+  else if(data.status === 2){ alert("Fingerprint not recognized."); await client.from("rack_sessions").update({ status: 0 }).eq("id", id); pollLogin(id); }
+}
+
+releaseBtn.onclick = async ()=>{
+  stopHeartbeat(); clearTimeout(loginPollTimer);
+  await client.from("sessions").delete().eq("session_id", sessionId);
+  localStorage.removeItem(sessionKey); sessionId = null;
+  messageEl.textContent = "Slot Released ✔"; slotActions.classList.add("hidden"); visitorActions.classList.remove("hidden");
+};
+
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) stopHeartbeat();
+  else if (sessionId && !slotActions.classList.contains("hidden")) startHeartbeat();
+});
 </script>
 </body>
 </html>
