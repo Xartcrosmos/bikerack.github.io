@@ -1,1 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>User Dashboard - Smart BikeRack</title>
+  <script src="https://unpkg.com"></script>
+  <style>
+    body { font-family: Arial, sans-serif; text-align: center; margin-top: 100px; background: #f4f4f9; }
+    .card { background: white; padding: 30px; border-radius: 12px; display: inline-block; box-shadow: 0 4px 10px rgba(0,0,0,0.1); width: 320px; }
+    h2 { color: #333; }
+    .info { margin: 20px 0; color: #666; font-size: 15px; }
+    button { padding: 12px 30px; font-size: 16px; cursor: pointer; border: none; border-radius: 6px; background: #ef4444; color: white; transition: 0.2s; }
+    button:hover { background: #dc2626; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
 
+  <div class="card">
+    <h2 id="message">User Dashboard</h2>
+    <div id="userDetails" class="info">
+      Loading session details...
+    </div>
+    <button id="logoutBtn">Logout</button>
+  </div>
+
+  <script>
+    const SUPABASE_URL = "https://lguyiavotyrxdlyhsvmz.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxndXlpYXZvdHlyeDRseWhzdm16Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkxNzQ0MjQsImV4cCI6MjA4NDc1MDQyNH0.f1hT0B68mv2lxVsQldk3ABx_0yBBUK2t1fcRHWGhmyM";
+    const client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    const messageEl = document.getElementById("message");
+    const userDetailsEl = document.getElementById("userDetails");
+    const logoutBtn = document.getElementById("logoutBtn");
+
+    // 1. Get Params from URL
+    const params = new URLSearchParams(window.location.search);
+    const device = params.get("device");
+    const slot = params.get("slot");
+    const userId = params.get("id");
+
+    if (!device || !slot || !userId) {
+      messageEl.textContent = "Invalid Session";
+      userDetailsEl.textContent = "Missing required parameters.";
+      logoutBtn.classList.add("hidden");
+    } else {
+      userDetailsEl.innerHTML = `
+        <strong>Device:</strong> ${device}<br>
+        <strong>Slot:</strong> ${slot}<br>
+        <strong>User ID:</strong> ${userId}
+      `;
+    }
+
+    // 2. Handle Logout
+    logoutBtn.onclick = async () => {
+      logoutBtn.disabled = true;
+      messageEl.textContent = "Logging out...";
+      
+      // Update rack_sessions status to 3
+      const { error } = await client
+        .from("rack_sessions")
+        .update({ status: 3 })
+        .eq("device_uuid", device)
+        .eq("slot", slot)
+        .eq("status", 1); // Only update if currently active
+
+      if (error) {
+        console.error("Logout Error:", error.message);
+        alert("Failed to update session status. Redirecting anyway...");
+      }
+
+      // 3. Redirect back to Gateway
+      setTimeout(() => {
+        window.location.href = `index.html?device=${device}&slot=${slot}`;
+      }, 1500);
+    };
+  </script>
+</body>
+</html>
