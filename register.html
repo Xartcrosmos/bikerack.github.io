@@ -77,9 +77,11 @@
         statusMsg.textContent = "Waiting for fingerprint...";
 
         // Insert request into the RACK_SESSIONS table (hardware reads this)
-        await client.from("rack_sessions").insert([{
+        await client.from("registration").insert([{
           device_uuid: currentDevice,
           slot: currentSlot,
+          name: currentName,
+          contact: currentContact,
           status: 0
         }]);
 
