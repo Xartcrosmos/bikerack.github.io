@@ -40,12 +40,28 @@
     const slot = params.get("slot");
     const userId = params.get("id");
 
+    let userName = "N/A";
+    
     if (!device || !slot || !userId) {
       messageEl.textContent = "Invalid Session";
       userDetailsEl.textContent = "Missing required parameters.";
       logoutBtn.classList.add("hidden");
     } else {
+      // --- NEW: Fetch User Name ---
+      const { data: user, error } = await client
+        .from("admins") // Use the correct table name, e.g., 'users' or 'admins'
+        .select("email") // Select the column that holds the name/email
+        .eq("id", userId)
+        .maybeSingle();
+
+      if (user) {
+        userName = user.email; // Assign the retrieved name/email
+      }
+      // ----------------------------
+
+      // --- UPDATED DISPLAY ---
       userDetailsEl.innerHTML = `
+        <strong>Name:</strong> ${userName}<br>
         <strong>Device:</strong> ${device}<br>
         <strong>Slot:</strong> ${slot}<br>
         <strong>User ID:</strong> ${userId}
