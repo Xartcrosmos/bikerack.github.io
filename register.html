@@ -61,8 +61,8 @@
         return;
       }
       
-      /* Cleanup old pending rows in RACK_SESSIONS table */
-      await client.from("rack_sessions").delete().eq("device_uuid", currentDevice).eq("slot", currentSlot).eq("status", 0);
+      /* Cleanup old pending rows in table */
+      await client.from("registration").delete().eq("device_uuid", currentDevice).eq("slot", currentSlot).eq("status", 0);
 
       titleEl.textContent = `Registering for Slot ${currentSlot}`;
       formBox.classList.remove("hidden");
@@ -76,7 +76,7 @@
         statusMsg.className = "msg muted";
         statusMsg.textContent = "Waiting for fingerprint...";
 
-        // Insert request into the RACK_SESSIONS table (hardware reads this)
+        // Insert request into the table (hardware reads this)
         await client.from("registration").insert([{
           device_uuid: currentDevice,
           slot: currentSlot,
@@ -85,7 +85,7 @@
           status: 0
         }]);
 
-        pollStatus(); // Start polling RACK_SESSIONS
+        pollStatus(); // Start polling 
       };
     };
 
@@ -93,7 +93,7 @@
        6️⃣ Poll hardware status
     ================================== */
     async function pollStatus() {
-      const { data } = await client.from("rack_sessions").select("*")
+      const { data } = await client.from("registration").select("*")
         .eq("device_uuid", currentDevice).eq("slot", currentSlot)
         .order("created_at", { ascending: false }).limit(1).maybeSingle();
 
@@ -105,7 +105,7 @@
         case 2:
           statusMsg.className = "msg error";
           alert("Fingerprint already existed, error was found. Please try again.");
-          await client.from("rack_sessions").update({ status: 0 }).eq("id", data.id);
+          await client.from("registration").update({ status: 0 }).eq("id", data.id);
           statusMsg.textContent = "Waiting for fingerprint...";
           break;
         case 3: // Success is status 3
