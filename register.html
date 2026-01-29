@@ -72,23 +72,23 @@
         if (!name || !contact) return;
         submitBtn.disabled = true;
         statusMsg.className = "msg muted";
-        statusMsg.textContent = "Waiting for fingerprint...";
-
-        const { data, error } = await client.from("registration").insert([{
-          device_uuid: currentDevice,
-          slot: currentSlot,
-          name: name,
-          contact: contact,
-          status: 0
-        }]).select().single();
-
-        if(error) {
+        statusMsg.textContent = "Processing...";
+    
+        // 1. GET THE ADMIN ID OF THIS RACK
+        const { data: unit } = await client .from("device_unit") .select("admin_id") .eq("uuid", currentDevice) .maybeSingle();
+          if (!unit || !unit.admin_id) {
           submitBtn.disabled = false;
-          statusMsg.textContent = "Error: " + error.message;
-          return;
-        }
+          return statusMsg.textContent = "Error: Rack owner not found.";}
+          statusMsg.textContent = "Waiting for fingerprint...";
+    
+        // 2. INSERT WITH ADMIN_ID
+        const { data, error } = await client.from("registration").insert([{device_uuid: currentDevice,slot: currentSlot,name: name,contact: contact, admin_id: unit.admin_id,status: 0}]).select().single();
+          if(error) {
+            submitBtn.disabled = false;
+            statusMsg.textContent = "Error: " + error.message;
+            return; }
 
-        pollStatus(data.id); 
+          pollStatus(data.id); 
       };
     };
 
