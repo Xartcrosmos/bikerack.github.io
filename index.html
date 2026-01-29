@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>BikeRack Slot Access</title>
 
-<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<script src="https://unpkg.com"></script>
 
 <style>
 body{font-family:Arial;text-align:center;margin-top:100px}
@@ -38,111 +38,168 @@ const messageEl = document.getElementById("message");
 const infoEl = document.getElementById("info");
 const slotActions = document.getElementById("slotActions");
 const releaseBtn = document.getElementById("releaseBtn");
+const registerBtn = document.getElementById("registerBtn");
+const loginUserBtn = document.getElementById("loginUserBtn");
 
 let heartbeat = null;
+let loginPollTimer = null;
 let sessionId = null;
 let sessionKey = null;
+let currentDevice = null;
+let currentSlot = null;
 
 const now = () => Math.floor(Date.now()/1000);
 const showError = (m)=>{messageEl.textContent=m;messageEl.className="error";};
 const stopHeartbeat = ()=>{ if(heartbeat) clearInterval(heartbeat); };
 
+/* ========= HEARTBEAT LOGIC ========= */
+const runHeartbeat = async () => {
+  if(!sessionId) return;
+  const { error } = await client
+    .from("sessions")
+    .update({ last_seen: now() })
+    .eq("session_id", sessionId);
+  
+  if (error) console.error("Heartbeat Failed:", error.message);
+  else console.log("Heartbeat Sync: " + new Date().toLocaleTimeString());
+};
+
+const startHeartbeat = () => {
+  stopHeartbeat();
+  runHeartbeat(); 
+  heartbeat = setInterval(runHeartbeat, 15000);
+};
+
+/* ========= INITIAL LOAD & LOCK ========= */
 window.addEventListener("load", async ()=>{
-
   const params = new URLSearchParams(location.search);
-  const device = params.get("device");
-  const slot = parseInt(params.get("slot"),10);
+  currentDevice = params.get("device");
+  currentSlot = parseInt(params.get("slot"), 10);
 
-  if(!device || Number.isNaN(slot)){
+  if(!currentDevice || Number.isNaN(currentSlot)){
     showError("Invalid QR.");
     return;
   }
 
-  infoEl.textContent = `Device: ${device} | Slot: ${slot}`;
+  infoEl.textContent = `Device: ${currentDevice} | Slot: ${currentSlot}`;
 
-    /* ========= STEP 1: PHYSICAL OCCUPIED ========= */
-  const { data: rack, error: rackError } = await client
+  // Check physical occupancy
+  const { data: rack } = await client
     .from("rack_sessions")
     .select("status")
-    .eq("device_uuid", device)
-    .eq("slot", slot)
+    .eq("device_uuid", currentDevice)
+    .eq("slot", currentSlot)
     .eq("status", 1)
-    .maybeSingle(); // Better for checking existence
-
-  if (rackError) {
-    console.error("Database Error:", rackError.message);
-    // If the error is 'invalid input syntax for type uuid', your device ID is wrong
-  }
+    .maybeSingle();
 
   if (rack) {
     showError("Slot is physically occupied.");
     return;
   }
 
-  /* ========= STEP 2: SESSION RETRIEVAL/GEN ========= */
-  sessionKey = `session_${device}_${slot}`;
-  // Keep the same ID on refresh so we don't lock ourselves out
+  // Session Lock Logic
+  sessionKey = `session_${currentDevice}_${currentSlot}`;
   sessionId = localStorage.getItem(sessionKey) || crypto.randomUUID();
 
   const { data: active } = await client
     .from("sessions")
-    .select("session_id, last_seen")
-    .eq("device_uuid", device)
-    .eq("slot", slot)
+    .select("session_id")
+    .eq("device_uuid", currentDevice)
+    .eq("slot", currentSlot)
     .gt("last_seen", now() - 60)
     .maybeSingle();
 
-  if (active) {
-    // If the active session in DB belongs to someone else
-    if (active.session_id !== sessionId) {
-      showError("Slot is in use by another user.");
-      return;
-    }
-    // If it's ours, we proceed to heartbeat
-  } else {
-    /* ========= STEP 3: UPSERT SESSION ========= */
-      const { error } = await client
-        .from("sessions")
-        .upsert([{ // <--- MUST be an array
-          device_uuid: device,
-          slot: slot,
-          session_id: sessionId,
-          last_seen: now()
-        }], { onConflict: 'device_uuid, slot' });
-
-    if (error) {
-      console.error("Upsert Error:", error.message);
-      showError("Could not start session.");
-      return;
-    }
-    localStorage.setItem(sessionKey, sessionId);
+  if (active && active.session_id !== sessionId) {
+    showError("Slot is in use by another user.");
+    return;
   }
 
-  /* ========= ALLOW ========= */
-  messageEl.textContent = `Rack Ready - Slot ${slot}`;
+  const { error: upsertErr } = await client
+    .from("sessions")
+    .upsert([{ 
+      device_uuid: currentDevice, 
+      slot: currentSlot, 
+      session_id: sessionId, 
+      last_seen: now() 
+    }], { onConflict: 'device_uuid, slot' });
+
+  if (upsertErr) {
+    showError("Could not start session.");
+    return;
+  }
+
+  localStorage.setItem(sessionKey, sessionId);
+  messageEl.textContent = `Rack Ready - Slot ${currentSlot}`;
   slotActions.classList.remove("hidden");
-
-  /* ========= HEARTBEAT ========= */
-  const runHeartbeat = async () => {
-    const { error } = await client
-      .from("sessions")
-      .update({ last_seen: now() })
-      .eq("session_id", sessionId);
-    
-    if (error) console.error("Heartbeat Failed:", error.message);
-    else console.log("Heartbeat Sync: " + new Date().toLocaleTimeString());
-  };
-
-  // Run once immediately on load, then every 15s
-  runHeartbeat(); 
-  heartbeat = setInterval(runHeartbeat, 15000);
-
-
+  startHeartbeat();
 });
+
+/* ========= LOGIN / FINGERPRINT LOGIC ========= */
+loginUserBtn.onclick = () => startLoginFlow(currentDevice, currentSlot);
+registerBtn.onclick = () => { messageEl.textContent = "Registration flow not implemented yet."; };
+
+async function startLoginFlow(device, slot){
+  messageEl.textContent = "Please scan fingerprint to login...";
   
+  const { data, error } = await client
+    .from("rack_sessions")
+    .insert([{
+      device_uuid: device,
+      slot: slot,
+      user_id: null,
+      timein: null,
+      timeout: null,
+      status: 0
+    }])
+    .select()
+    .single();
+
+  if(error){
+    showError(error.message);
+    return;
+  }
+
+  pollLogin(data.id, device, slot);
+}
+
+async function pollLogin(id, device, slot){
+  const { data } = await client
+    .from("rack_sessions")
+    .select("status, user_id")
+    .eq("id", id)
+    .single();
+
+  if(!data) return;
+
+  if(data.status === 0){
+    loginPollTimer = setTimeout(() => pollLogin(id, device, slot), 2000);
+    return;
+  }
+
+  if(data.status === 1){
+    clearTimeout(loginPollTimer);
+    window.location.href = `login.html?device=${device}&slot=${slot}&id=${data.user_id}`;
+    return;
+  }
+
+  if(data.status === 2){
+    clearTimeout(loginPollTimer);
+    alert("Fingerprint not recognized. Please try again.");
+    await client.from("rack_sessions").update({ status: 0 }).eq("id", id);
+    pollLogin(id, device, slot);
+    return;
+  }
+
+  if(data.status === 3){
+    clearTimeout(loginPollTimer);
+    messageEl.textContent = "Session ended.";
+  }
+}
+
 /* ========= RELEASE ========= */
 releaseBtn.onclick = async ()=>{
   stopHeartbeat();
+  clearTimeout(loginPollTimer);
 
   await client
     .from("sessions")
@@ -150,27 +207,20 @@ releaseBtn.onclick = async ()=>{
     .eq("session_id", sessionId);
 
   localStorage.removeItem(sessionKey);
-
-  messageEl.textContent="Slot Released ✔";
+  sessionId = null; // Prevent heartbeat resume
+  messageEl.textContent = "Slot Released ✔";
   slotActions.classList.add("hidden");
 };
 
-
 /* ========= CLEANUP & RESUME ========= */
 document.addEventListener("visibilitychange", () => {
-  // Only restart if we actually have an active sessionId (haven't clicked release)
   if (document.hidden) {
     stopHeartbeat();
-  } else if (sessionId && slotActions.classList.contains("hidden") === false) {
-    const resumeHeartbeat = async () => {
-      await client.from("sessions").update({ last_seen: now() }).eq("session_id", sessionId);
-    };
-    resumeHeartbeat(); 
-    heartbeat = setInterval(resumeHeartbeat, 15000);
+  } else if (sessionId && !slotActions.classList.contains("hidden")) {
+    startHeartbeat();
   }
 });
 
 </script>
-
 </body>
 </html>
