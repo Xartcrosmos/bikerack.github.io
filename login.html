@@ -38,6 +38,24 @@
     const device = params.get("device");
     const slot = params.get("slot");
     const userId = params.get("id");
+
+    const localSessId = localStorage.getItem(`session_${device}_${slot}`);
+
+    const { data: session } = await client
+      .from("sessions")
+      .select("user_id")
+      .eq("device_uuid", device)
+      .eq("slot", slot)
+      .eq("user_id", userId) 
+      .eq("session_id", localSessId)
+      .gt("last_seen", Math.floor(Date.now() / 1000) - 70)
+      .maybeSingle();
+  
+    if (!session) {
+      document.body.innerHTML = "<h1>Security Error</h1><p>Invalid session pairing.</p>";
+      setTimeout(() => window.location.href = "index.html", 2000);
+      return; 
+    }
     
     let userName = "N/A";
     
