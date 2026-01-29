@@ -104,7 +104,7 @@
           statusMsg.className = "msg error";
           alert("Fingerprint already existed, error was found. Please try again.");
           await client.from("registration").update({ status: 0 }).eq("id", data.id);
-          return; 
+          break;
         case 3: 
           statusMsg.className = "msg success";
           statusMsg.textContent = "Registration successful! Redirecting...";
