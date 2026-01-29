@@ -199,19 +199,16 @@ async function pollLogin(id){
     const { data: userReg } = await client .from("registration") .select("admin_id") .eq("id", userId) .maybeSingle();
       if (!userReg || !userReg.admin_id) {
         alert("No valid user registration found. Please register.");
-        // Unlock buttons, delete the pending row, and stop login flow
-        loginUserBtn.disabled = false;
-        registerBtn.disabled = false;
-        await client.from("rack_sessions").delete().eq("id", id);
+        await client.from("rack_sessions").update({ status: 0 }).eq("id", id);
+        pollLogin(id);
         return; 
       }
     // 2. Check if the CURRENT DEVICE UUID belongs to that Admin
     const { data: ownedUnit } = await client .from("device_unit") .select("uuid") .eq("admin_id", userReg.admin_id) .eq("uuid", currentDevice) .maybeSingle();
       if (!ownedUnit) {
-        alert("This unit is not part of your registered fleet. Access denied.");
-        loginUserBtn.disabled = false;
-        registerBtn.disabled = false;
-        await client.from("rack_sessions").delete().eq("id", id);
+        alert("You're not registered to this unit yet. Please register.");
+         await client.from("rack_sessions").update({ status: 0 }).eq("id", id);
+        pollLogin(id);
         return;
       }
     // --- END SECURITY CHECK ---
