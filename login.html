@@ -57,14 +57,24 @@
           throw new Error("Unauthorized access blocked"); 
       }
 
-    const { data: session, error: sessionError } = await client.from("rack_sessions").select("status").eq("device_uuid", device).eq("user_id", userIdInt).eq("slot", slotInt).maybeSingle();
-      if (sessionError || !session || session.status != 1) {
-          alert("Session has expired or is no longer active.");
-          // Cleanup local storage since the session is dead
-          localStorage.removeItem("session_data");
-          window.location.href = `index.html?device=${device}&slot=${slot}`;
-          throw new Error("Session expired");
-      }
+// 1. Get the stored data
+const storedData = JSON.parse(localStorage.getItem("session_data"));
+
+// 2. NEW DATABASE CHECK: Use dbRowId for a perfect match
+const { data: session, error: sessionError } = await client
+  .from("rack_sessions")
+  .select("status")
+  .eq("id", storedData.dbRowId) // This is the 'id' we just saved in index.html
+  .maybeSingle();
+
+// 3. Validation logic
+if (sessionError || !session || session.status != 1) {
+    alert("Session has expired or is no longer active.");
+    localStorage.removeItem("session_data");
+    window.location.href = `index.html?device=${device}&slot=${slot}`;
+    throw new Error("Session expired");
+}
+
 
     let userName = "N/A";
 
