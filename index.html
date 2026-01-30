@@ -230,7 +230,6 @@ async function pollLogin(id){
         currentSlot, 
         userId 
     }));
-
     // 3. Redirect to Dashboard
     window.location.href = `login.html?device=${currentDevice}&slot=${currentSlot}&id=${userId}`;
     return;
