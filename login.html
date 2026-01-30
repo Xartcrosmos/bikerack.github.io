@@ -53,15 +53,6 @@
           }
           throw new Error("Unauthorized access blocked"); 
       }
-    
-    const { data: session, error: sessionError } = await client.from("rack_sessions").select("status").eq("device_uuid", device).eq("user_id", userId).eq("slot", slot).maybeSingle();
-      if (sessionError || !session || session.status != 1) {
-          alert("Session has expired or is no longer active.");
-          // Cleanup local storage since the session is dead
-          localStorage.removeItem("session_data");
-          window.location.href = `index.html?device=${device}&slot=${slot}`;
-          throw new Error("Session expired");
-      }
 
     let userName = "N/A";
 
