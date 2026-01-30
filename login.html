@@ -48,7 +48,7 @@
           
           alert("You don't have access to this profile.");
           if (storedData && storedData.currentDevice) {
-            window.location.href = `login.html?device=${storedData.currentDevice}&slot=${storedData.currentSlot}&slot=${storedData.userId}`;
+            window.location.href = `login.html?device=${storedData.currentDevice}&slot=${storedData.currentSlot}&id=${storedData.userId}`;
           } else {
             window.location.href = "index.html";
           }
