@@ -39,6 +39,9 @@
     const slot = params.get("slot");
     const userId = params.get("id");
 
+    const userIdInt = Number(userId);
+    const slotInt = Number(slot);
+
     const storedData = JSON.parse(localStorage.getItem("session_data"));
       if (!storedData || 
           storedData.currentDevice != device || 
@@ -54,9 +57,7 @@
           throw new Error("Unauthorized access blocked"); 
       }
 
-    const userIdInt = Number(userId);
-    const slotInt = Number(slot);
-    const { data: session, error: sessionError } = await client.from("rack_sessions").select("status").eq("device_uuid", device).eq("user_id", userId).eq("slot", slot).maybeSingle();
+    const { data: session, error: sessionError } = await client.from("rack_sessions").select("status").eq("device_uuid", device).eq("user_id", userIdInt).eq("slot", slotInt).maybeSingle();
       if (sessionError || !session || session.status != 1) {
           alert("Session has expired or is no longer active.");
           // Cleanup local storage since the session is dead
