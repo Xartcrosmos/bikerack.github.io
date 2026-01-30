@@ -212,25 +212,18 @@ async function pollLogin(id){
         return;
       }
     // --- END SECURITY CHECK ---
-         // 1. Update rack_sessions (so login.html can find the user_id)
-    const { error: updateError } = await client
-      .from("rack_sessions") 
-      .update({ user_id: userId }) 
-      .eq("id", id);
+    const { error: updateError } = await client.from("rack_sessions") .update({ user_id: userId }) .eq("id", id);
 
     if (updateError) {
         console.error("Update failed:", updateError.message);
         alert("Database sync failed. Please try again.");
         return;
     }
-    
-    await client.from("sessions").update({ user_id: userId }) .eq("session_id", sessionId);
-    // 2. Save to localStorage (ensures keys match exactly what login.html reads)
-    localStorage.setItem("session_data", JSON.stringify({ currentDevice, currentSlot, userId }));
-    // 3. Redirect to Dashboard
+    await client.from("sessions").update({ user_id: userId }).eq("session_id", sessionId);
+
+    localStorage.setItem("session_data", JSON.stringify({ currentDevice, currentSlot, userId, dbRowId: id }));
     window.location.href = `login.html?device=${currentDevice}&slot=${currentSlot}&id=${userId}`;
     return;
-    
   } else if(data.status === 2){ 
     alert("Fingerprint not recognized."); 
     await client.from("rack_sessions").update({ status: 0 }).eq("id", id); 
