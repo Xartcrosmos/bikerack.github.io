@@ -216,20 +216,17 @@ async function pollLogin(id){
     const { error: updateError } = await client
       .from("rack_sessions") 
       .update({ user_id: userId }) 
-      .eq("session_id", sessionId);
+      .eq("id", id);
 
     if (updateError) {
         console.error("Update failed:", updateError.message);
         alert("Database sync failed. Please try again.");
         return;
     }
-
+    
+    await client.from("sessions").update({ user_id: userId }) .eq("session_id", sessionId);
     // 2. Save to localStorage (ensures keys match exactly what login.html reads)
-    localStorage.setItem("session_data", JSON.stringify({ 
-        currentDevice, 
-        currentSlot, 
-        userId 
-    }));
+    localStorage.setItem("session_data", JSON.stringify({ currentDevice, currentSlot, userId }));
     // 3. Redirect to Dashboard
     window.location.href = `login.html?device=${currentDevice}&slot=${currentSlot}&id=${userId}`;
     return;
