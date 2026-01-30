@@ -40,6 +40,7 @@
     const userId = params.get("id");
 
     const storedData = JSON.parse(localStorage.getItem("session_data"));
+      // Use != (loose inequality) to ignore String vs Number differences
       if (!storedData || 
           storedData.currentDevice != device || 
           storedData.currentSlot != slot || 
@@ -85,26 +86,27 @@
 
     // 2. Handle Logout
     logoutBtn.onclick = async () => {
-        logoutBtn.disabled = true;
-        messageEl.textContent = "Finalizing session...";
-        try {
-            const { error } = await client
-                .from("rack_sessions")
-                .update({ status: 3 })
-                .eq("device_uuid", device)
-                .eq("slot", slot)
-                .eq("user_id", userId) 
-                .eq("status", 1);
-    
-            if (error) throw error;
-        } catch (err) {
-            console.error("Logout Error:", err.message);
-        } finally {
-            localStorage.removeItem("session_data");\
-            setTimeout(() => {
-                window.location.href = `index.html?device=${device}&slot=${slot}`;
-            }, 1200);
-        }};
+      logoutBtn.disabled = true;
+      messageEl.textContent = "Logging out...";
+      
+      // Update rack_sessions status to 3
+      const { error } = await client
+        .from("rack_sessions")
+        .update({ status: 3 })
+        .eq("device_uuid", device)
+        .eq("slot", slot)
+        .eq("status", 1); // Only update if currently active
+
+      if (error) {
+        console.error("Logout Error:", error.message);
+        alert("Failed to update session status. Redirecting anyway...");
+      }
+
+      // 3. Redirect back to Gateway
+      setTimeout(() => {
+        window.location.href = `index.html?device=${device}&slot=${slot}`;
+      }, 1500);
+    };
   </script>
 </body>
 </html>
