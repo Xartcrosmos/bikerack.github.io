@@ -99,28 +99,32 @@ if (sessionError || !session || session.status != 1) {
     }
 
     // 2. Handle Logout
-    logoutBtn.onclick = async () => {
-      logoutBtn.disabled = true;
-      messageEl.textContent = "Logging out...";
-      
-      // Update rack_sessions status to 3
-      const { error } = await client
-        .from("rack_sessions")
-        .update({ status: 3 })
-        .eq("device_uuid", device)
-        .eq("slot", slot)
-        .eq("status", 1); // Only update if currently active
+logoutBtn.onclick = async () => {
+    logoutBtn.disabled = true;
+    messageEl.textContent = "Finalizing session...";
 
-      if (error) {
-        console.error("Logout Error:", error.message);
-        alert("Failed to update session status. Redirecting anyway...");
-      }
-
-      // 3. Redirect back to Gateway
-      setTimeout(() => {
-        window.location.href = `index.html?device=${device}&slot=${slot}`;
-      }, 1500);
-    };
+    const userIdInt = Number(userId);
+    const slotInt = Number(slot);
+    
+      try {
+          const { error } = await client
+              .from("rack_sessions")
+              .update({ status: 3, timeout: new Date().toISOString() }) 
+              .eq("device_uuid", device)
+              .eq("slot", slotInt) 
+              .eq("user_id", userIdInt) 
+              .eq("status", 1);
+  
+          if (error) throw error;
+      } catch (err) {
+          console.error("Logout Error:", err.message);
+      } finally {
+          localStorage.removeItem("session_data");
+          setTimeout(() => {
+              window.location.href = `index.html?device=${device}&slot=${slot}`;
+          }, 1200);
+        }
+      };
   </script>
 </body>
 </html>
