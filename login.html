@@ -22,7 +22,7 @@
     <div id="userDetails" class="info">
       Loading session details...
     </div>
-    <button id="logoutBtn">Logout</button>
+    <button id="logoutBtn" class="hidden">Logout</button>
   </div>
 
   <script type=module>
@@ -96,6 +96,7 @@ if (sessionError || !session || session.status != 1) {
         <strong>Slot:</strong> ${slot}<br>
         <strong>User ID:</strong> ${userId}
       `;
+      logoutBtn.classList.remove("hidden");
     }
 
     // 2. Handle Logout
