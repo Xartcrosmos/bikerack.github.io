@@ -39,9 +39,6 @@
     const slot = params.get("slot");
     const userId = params.get("id");
 
-    const userIdInt = Number(userId);
-    const slotInt = Number(slot);
-
     const storedData = JSON.parse(localStorage.getItem("session_data"));
       if (!storedData || 
           storedData.currentDevice != device || 
@@ -56,8 +53,7 @@
           }
           throw new Error("Unauthorized access blocked"); 
       }
-
-    const { data: session, error: sessionError } = await client.from("rack_sessions").select("status").eq("device_uuid", device).eq("user_id", userIdInt).eq("slot", slotInt).maybeSingle();
+    const { data: session, error: sessionError } = await client.from("rack_sessions").select("status").eq("device_uuid", device).eq("user_id", userId).eq("slot", slot).maybeSingle();
       if (sessionError || !session || session.status != 1) {
           alert("Session has expired or is no longer active.");
           // Cleanup local storage since the session is dead
@@ -99,29 +95,26 @@
     logoutBtn.onclick = async () => {
     logoutBtn.disabled = true;
     messageEl.textContent = "Finalizing session...";
-
-    const userIdInt = Number(userId);
-    const slotInt = Number(slot);
     
-      try {
-          const { error } = await client
-              .from("rack_sessions")
-              .update({ status: 3, timeout: new Date().toISOString() }) 
-              .eq("device_uuid", device)
-              .eq("slot", slotInt) 
-              .eq("user_id", userIdInt) 
-              .eq("status", 1);
-  
-          if (error) throw error;
-      } catch (err) {
-          console.error("Logout Error:", err.message);
-      } finally {
-          localStorage.removeItem("session_data");
-          setTimeout(() => {
-              window.location.href = `index.html?device=${device}&slot=${slot}`;
-          }, 1200);
-        }
-      };
+    try {
+        const { error } = await client
+            .from("rack_sessions")
+            .update({ status: 3, timeout: new Date().toISOString() }) 
+            .eq("device_uuid", device)
+            .eq("slot", slot)
+            .eq("user_id", userId)
+            .eq("status", 1);
+
+        if (error) throw error;
+    } catch (err) {
+        console.error("Logout Error:", err.message);
+    } finally {
+        localStorage.removeItem("session_data");
+        setTimeout(() => {
+            window.location.href = `index.html?device=${device}&slot=${slot}`;
+        }, 1200);
+    }
+};
 
   </script>
 </body>
