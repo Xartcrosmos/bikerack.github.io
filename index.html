@@ -216,6 +216,8 @@ async function pollLogin(id){
       .from("sessions")
       .update({ user_id: userId }) // Add this column to your sessions table!
       .eq("session_id", sessionId);
+
+      localStorage.setItem("session_data", JSON.stringify({ currentDevice, currentSlot, userId }));
     
       window.location.href = `login.html?device=${currentDevice}&slot=${currentSlot}&id=${userId}`;
       return;
