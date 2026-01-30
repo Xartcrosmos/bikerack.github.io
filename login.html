@@ -42,20 +42,26 @@
     const userIdInt = Number(userId);
     const slotInt = Number(slot);
 
+try {
     const storedData = JSON.parse(localStorage.getItem("session_data"));
-      if (!storedData || 
-          storedData.currentDevice != device || 
-          storedData.currentSlot != slot || 
-          storedData.userId != userId) {
-          
-          alert("You don't have access to this profile.");
-          if (storedData && storedData.currentDevice) {
-            window.location.href = `login.html?device=${storedData.currentDevice}&slot=${storedData.currentSlot}&id=${storedData.userId}`;
-          } else {
-            window.location.href = "index.html";
-          }
-          throw new Error("Unauthorized access blocked"); 
-      }
+    
+    // Use String() to prevent type-mismatch failures
+    if (!storedData || 
+        storedData.currentDevice !== device || 
+        String(storedData.currentSlot) !== String(slot) || 
+        String(storedData.userId) !== String(userId)) {
+        
+        console.error("Auth mismatch:", { storedData, urlParams: { device, slot, userId } });
+        alert("Session mismatch. Redirecting to login...");
+        window.location.href = "index.html"; 
+        return; // Stop execution
+    }
+} catch (e) {
+    console.error("Session parse error:", e);
+    window.location.href = "index.html";
+    return;
+}
+
 
 
 
