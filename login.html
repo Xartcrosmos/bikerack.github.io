@@ -47,7 +47,11 @@
           storedData.userId != userId) {
           
           alert("You don't have access to this profile.");
-          window.location.href = "index.html"; 
+          if (storedData && storedData.currentDevice) {
+            window.location.href = `index.html?device=${storedData.currentDevice}&slot=${storedData.currentSlot}`;
+          } else {
+            window.location.href = "index.html";
+          }
           throw new Error("Unauthorized access blocked"); 
       }
 
