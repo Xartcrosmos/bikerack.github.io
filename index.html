@@ -212,15 +212,28 @@ async function pollLogin(id){
         return;
       }
     // --- END SECURITY CHECK ---
-     await client
-      .from("sessions")
-      .update({ user_id: userId }) // Add this column to your sessions table!
+         // 1. Update rack_sessions (so login.html can find the user_id)
+    const { error: updateError } = await client
+      .from("rack_sessions") 
+      .update({ user_id: userId }) 
       .eq("session_id", sessionId);
 
-      localStorage.setItem("session_data", JSON.stringify({ currentDevice, currentSlot, userId }));
-    
-      window.location.href = `login.html?device=${currentDevice}&slot=${currentSlot}&id=${userId}`;
-      return;
+    if (updateError) {
+        console.error("Update failed:", updateError.message);
+        alert("Database sync failed. Please try again.");
+        return;
+    }
+
+    // 2. Save to localStorage (ensures keys match exactly what login.html reads)
+    localStorage.setItem("session_data", JSON.stringify({ 
+        currentDevice, 
+        currentSlot, 
+        userId 
+    }));
+
+    // 3. Redirect to Dashboard
+    window.location.href = `login.html?device=${currentDevice}&slot=${currentSlot}&id=${userId}`;
+    return;
     
   } else if(data.status === 2){ 
     alert("Fingerprint not recognized."); 
@@ -228,7 +241,6 @@ async function pollLogin(id){
     pollLogin(id); 
   }
 }
-  
 /* ========= REGISTER BUTTON HANDLER (SLOT MODE) ========= */
 registerBtn.onclick = () => {
   window.location.href = `register.html?device=${currentDevice}&slot=${currentSlot}`;
