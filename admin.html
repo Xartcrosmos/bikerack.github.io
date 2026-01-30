@@ -1,171 +1,269 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>BikeRack Access Manager - Minimal</title>
-    <style>
-        :root {
-            --primary-blue: #3498db;
-            --topbar-height: 60px;
-            --sidebar-width: 250px;
-        }
-        
-        body {
-            font-family: 'Segoe UI', sans-serif;
-            margin: 0;
-            display: flex;
-            flex-direction: column;
-            height: 100vh;
-            background-color: #f4f7f9; /* Light gray background for contrast */
-            color: #333;
-            overflow: hidden;
-        }
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BikeRack Admin Dashboard</title>
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 
-        /* Top Bar - Blue Header */
-        #header-bar {
-            height: var(--topbar-height);
-            background-color: var(--primary-blue);
-            color: white;
-            padding: 0 20px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-            z-index: 100;
-        }
-        .logo-title { font-weight: bold; font-size: 1.1rem; }
-        .user-panel { display: flex; align-items: center; gap: 15px; font-size: 0.9rem; }
-        .logout-link { color: white; text-decoration: none; opacity: 0.8; }
+  <style>
+    body{margin:0;font-family:Arial;background:#f5f6fa}
 
-        /* Main Layout Container */
-        #layout-container {
-            display: flex;
-            flex: 1;
-            overflow: hidden;
-            position: relative;
-        }
+    /* TOP BAR */
+    .topbar{
+      height:60px;
+      background:#111827;
+      color:white;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      padding:0 20px;
+    }
 
-        /* Side Panel (Drawer) */
-        #side-panel {
-            width: var(--sidebar-width);
-            background-color: #fff;
-            box-shadow: 2px 0 5px rgba(0, 0, 0, 0.05);
-            transition: transform 0.3s ease;
-            transform: translateX(0);
-            z-index: 99;
-            flex-shrink: 0;
-            overflow-y: auto;
-        }
-        /* Class applied when sidebar is hidden */
-        #side-panel.collapsed { transform: translateX(-100%); }
+    .title{font-size:18px;font-weight:bold}
 
-        .sidebar-header {
-            display: flex;
-            align-items: center;
-            padding: 15px 20px;
-            cursor: pointer;
-            border-bottom: 1px solid #f0f0f0;
-        }
-        .sidebar-header h3 { margin: 0; font-size: 1rem; margin-left: 10px; }
-        .nav-item {
-            padding: 12px 20px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            color: var(--text-color);
-            text-decoration: none;
-            cursor: pointer;
-            transition: background 0.2s;
-        }
-        .nav-item:hover, .nav-item.active { background-color: #f0f0f0; }
+    .logout{cursor:pointer;background:#ef4444;border:none;color:white;padding:8px 14px;border-radius:6px}
 
-        /* Main View */
-        #main-view {
-            flex: 1;
-            background-color: #fff;
-            padding: 30px;
-            overflow-y: auto;
-            /* Ensures main view always takes remaining space */
-            min-width: 0; 
-        }
+    /* LAYOUT */
+    .container{display:flex;height:calc(100vh - 60px)}
 
-        /* Secondary Header bar above main content */
-        #secondary-header {
-            background: #fff;
-            padding: 15px 30px;
-            border-bottom: 1px solid #eee;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
+    /* SIDEBAR */
+    .sidebar{
+      width:220px;
+      background:#1f2937;
+      color:white;
+      transition:.2s;
+      padding-top:15px;
+    }
 
-        /* Class applied to body to shift main view when collapsed */
-        body.sidebar-collapsed #main-view {
-            width: 100%; /* Take full width */
-        }
-    </style>
+    .sidebar.closed{width:60px}
+
+    .menu-btn{
+      padding:12px 16px;
+      cursor:pointer;
+    }
+
+    .menu-btn:hover{background:#374151}
+
+    .toggle{
+      text-align:center;
+      font-size:18px;
+      cursor:pointer;
+      padding:10px;
+      border-bottom:1px solid #374151;
+    }
+
+    /* MAIN */
+    .main{
+      flex:1;
+      padding:20px;
+      overflow:auto;
+      background:white;
+    }
+
+    h2{margin-top:0}
+
+    table{
+      border-collapse:collapse;
+      width:100%;
+      margin-top:15px;
+    }
+
+    th,td{
+      border:1px solid #ddd;
+      padding:8px;
+      text-align:center;
+      font-size:14px;
+    }
+
+    th{background:#f3f4f6}
+
+    button{
+      padding:6px 10px;
+      margin:2px;
+      cursor:pointer;
+    }
+
+    .hidden{display:none}
+    .muted{color:#666;font-size:13px}
+  </style>
 </head>
 <body>
-    <!-- Top Bar -->
-    <header id="header-bar">
-        <div class="logo-title">BikeRack Access Manager</div>
-        <div class="user-panel">
-            <span>Welcome, Admin</span>
-            <span>|</span>
-            <a href="#" class="logout-link">[+ Logout]</a>
-        </div>
-    </header>
 
-    <div id="layout-container">
-        <!-- Side Panel (Drawer) -->
-        <nav id="side-panel">
-            <div class="sidebar-header" onclick="toggleSidebar()">
-                <!-- Simple hamburger icon placeholder -->
-                <span>☰</span>
-                <h3>Admin</h3>
-            </div>
-            <a href="#" class="nav-item active">
-                <!-- Icon placeholders -->
-                <span>📊</span> View Racks
-            </a>
-            <a href="#" class="nav-item">
-                <span>👥</span> Manage Users
-            </a>
-            <a href="#" class="nav-item">
-                <span>📜</span> View Logs
-            </a>
-        </nav>
+<!-- TOP BAR -->
+<div class="topbar">
+  <div class="title">🚲 BikeRack Admin</div>
+  <button class="logout" id="logoutBtn">Logout</button>
+</div>
 
-        <!-- Main View Area -->
-        <main id="main-view">
-            <div id="secondary-header">
-                <strong>BikeRack Access Manager – Admin</strong>
-                <!-- User info repeated from top bar, as seen in the reference image layout -->
-                <div class="user-panel">
-                    <span>👤 Welcome, Admin</span>
-                    <a href="#" class="logout-link" style="color:var(--text-color);">[+ Logout]</a>
-                </div>
-            </div>
-            <!-- Empty space below secondary header, as requested -->
-        </main>
-    </div>
+<div class="container">
 
-    <script>
-        function toggleSidebar() {
-            document.getElementById('side-panel').classList.toggle('collapsed');
-            document.body.classList.toggle('sidebar-collapsed');
-        }
+  <!-- SIDEBAR -->
+  <div class="sidebar" id="sidebar">
+    <div class="toggle" id="toggleBtn">☰</div>
+    <div class="menu-btn" id="viewRackBtn">View Racks</div>
+    <div class="menu-btn" id="usersBtn">Manage Users</div>
+    <div class="menu-btn" id="logsBtn">Log Sessions</div>
+  </div>
 
-        // Optional: Add basic JS to handle 'active' link switching
-        document.querySelectorAll('.nav-item').forEach(item => {
-            item.addEventListener('click', function(e) {
-                // Prevent default link behavior for this example
-                e.preventDefault(); 
-                document.querySelectorAll('.nav-item').forEach(link => link.classList.remove('active'));
-                this.classList.add('active');
-            });
-        });
-    </script>
+  <!-- MAIN VIEW -->
+  <div class="main">
+
+    <h2 id="pageTitle">Dashboard</h2>
+    <div id="info" class="muted"></div>
+
+    <!-- TABLE -->
+    <table id="table">
+      <thead></thead>
+      <tbody></tbody>
+    </table>
+
+  </div>
+</div>
+
+<script>
+/* ========= CONFIG ========= */
+const SUPABASE_URL = "https://lguyiavotyrxdlyhsvmz.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxndXlpYXZvdHlyeGRseWhzdm16Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkxNzQ0MjQsImV4cCI6MjA4NDc1MDQyNH0.f1hT0B68mv2lxVsQldk3ABx_0yBBUK2t1fcRHWGhmyM";
+const client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+/* ========= ELEMENTS ========= */
+const sidebar = document.getElementById("sidebar");
+const tableHead = document.querySelector("#table thead");
+const tableBody = document.querySelector("#table tbody");
+const pageTitle = document.getElementById("pageTitle");
+const info = document.getElementById("info");
+
+/* ========= PARAMS ========= */
+const params = new URLSearchParams(location.search);
+const adminId = params.get("admin_id");
+
+if(!adminId){
+  alert("Unauthorized");
+  location.href = "index.html";
+}
+
+/* ========= INIT ========= */
+window.addEventListener("load", async ()=>{
+  const { data: devices } = await client
+    .from("device_unit")
+    .select("uuid")
+    .eq("admin_id", adminId);
+
+  if(!devices || devices.length===0){
+    alert("No devices found");
+    location.href="index.html";
+  }
+
+  window._devices = devices.map(d=>d.uuid);
+  info.textContent = `Units owned: ${devices.length}`;
+
+  loadRacks();
+});
+
+/* ========= SIDEBAR ========= */
+toggleBtn.onclick = ()=> sidebar.classList.toggle("closed");
+viewRackBtn.onclick = loadRacks;
+usersBtn.onclick = loadUsers;
+logsBtn.onclick = loadLogs;
+
+logoutBtn.onclick = ()=>{
+  location.href="index.html";
+};
+
+/* ========= VIEW RACKS ========= */
+async function loadRacks(){
+  pageTitle.textContent = "View Racks";
+
+  tableHead.innerHTML = "<tr><th>UNIT</th><th>SLOT</th><th>NAME</th><th>STATUS</th></tr>";
+  tableBody.innerHTML = "";
+
+  const { data } = await client
+    .from("rack_sessions")
+    .select("device_uuid, slot, user_id, status");
+
+  const { data: regs } = await client
+    .from("registration")
+    .select("id,name");
+
+  const map = {};
+  regs.forEach(r=>map[r.id]=r.name);
+
+  window._devices.forEach((uuid, i)=>{
+    const unitName = String.fromCharCode(65+i);
+
+    for(let s=1; s<=2; s++){
+      const row = data?.find(r=>r.device_uuid===uuid && r.slot===s && r.status===1);
+      const name = row ? map[row.user_id] || "---" : "---";
+      const status = row ? "ACTIVE" : "---";
+
+      tableBody.innerHTML += `<tr><td>${unitName}</td><td>${s}</td><td>${name}</td><td>${status}</td></tr>`;
+    }
+  });
+}
+
+/* ========= USERS ========= */
+async function loadUsers(){
+  pageTitle.textContent = "Manage Users";
+
+  tableHead.innerHTML = "<tr><th>DATE</th><th>NAME</th><th>CONTACT</th><th>ACTIONS</th></tr>";
+  tableBody.innerHTML = "";
+
+  const { data } = await client
+    .from("registration")
+    .select("id, created_at, name, contact");
+
+  data?.forEach(u=>{
+    tableBody.innerHTML += `
+      <tr>
+        <td>${u.created_at}</td>
+        <td>${u.name}</td>
+        <td>${u.contact}</td>
+        <td>
+          <button onclick="deleteUser('${u.id}')">Delete</button>
+        </td>
+      </tr>`;
+  });
+}
+
+async function deleteUser(id){
+  if(!confirm("Delete this user?")) return;
+  await client.from("registration").delete().eq("id", id);
+  loadUsers();
+}
+
+/* ========= LOGS ========= */
+async function loadLogs(){
+  pageTitle.textContent = "Log Sessions";
+
+  tableHead.innerHTML = "<tr><th>SLOT</th><th>NAME</th><th>CONTACT</th><th>TIMEIN</th><th>TIMEOUT</th></tr>";
+  tableBody.innerHTML = "";
+
+  const { data } = await client
+    .from("rack_sessions")
+    .select("device_uuid, slot, user_id, timein, timeout");
+
+  const { data: regs } = await client
+    .from("registration")
+    .select("id,name,contact");
+
+  const map = {};
+  regs.forEach(r=>map[r.id]=r);
+
+  data?.filter(r=>window._devices.includes(r.device_uuid)).forEach(r=>{
+    const user = map[r.user_id] || {};
+
+    tableBody.innerHTML += `
+      <tr>
+        <td>${r.slot}</td>
+        <td>${user.name || '---'}</td>
+        <td>${user.contact || '---'}</td>
+        <td>${r.timein || '-'}</td>
+        <td>${r.timeout || '-'}</td>
+      </tr>`;
+  });
+}
+</script>
+
 </body>
 </html>
