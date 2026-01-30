@@ -40,7 +40,6 @@
     const userId = params.get("id");
 
     const storedData = JSON.parse(localStorage.getItem("session_data"));
-      // Use != (loose inequality) to ignore String vs Number differences
       if (!storedData || 
           storedData.currentDevice != device || 
           storedData.currentSlot != slot || 
@@ -53,6 +52,14 @@
             window.location.href = "index.html";
           }
           throw new Error("Unauthorized access blocked"); 
+      }
+    const { data: session, error: sessionError } = await client.from("rack_sessions").select("status").eq("device_uuid", device).eq("user_id", userId).eq("slot", slot).maybeSingle();
+      if (sessionError || !session || session.status != 1) {
+          alert("Session has expired or is no longer active.");
+          // Cleanup local storage since the session is dead
+          localStorage.removeItem("session_data");
+          window.location.href = `index.html?device=${device}&slot=${slot}`;
+          throw new Error("Session expired");
       }
 
     let userName = "N/A";
@@ -85,28 +92,37 @@
     }
 
     // 2. Handle Logout
-    logoutBtn.onclick = async () => {
-      logoutBtn.disabled = true;
-      messageEl.textContent = "Logging out...";
-      
-      // Update rack_sessions status to 3
-      const { error } = await client
-        .from("rack_sessions")
-        .update({ status: 3 })
-        .eq("device_uuid", device)
-        .eq("slot", slot)
-        .eq("status", 1); // Only update if currently active
+    llogoutBtn.onclick = async () => {
+    // 1. UI Protection
+    logoutBtn.disabled = true;
+    messageEl.textContent = "Finalizing session...";
+    
+    try {
+        // 2. Database Sync: Mark session as finished
+        const { error } = await client
+            .from("rack_sessions")
+            .update({ status: 3 })
+            .eq("device_uuid", device)
+            .eq("slot", slot)
+            .eq("user_id", userId) // Added for extra precision
+            .eq("status", 1);
 
-      if (error) {
-        console.error("Logout Error:", error.message);
-        alert("Failed to update session status. Redirecting anyway...");
-      }
+        if (error) throw error;
 
-      // 3. Redirect back to Gateway
-      setTimeout(() => {
-        window.location.href = `index.html?device=${device}&slot=${slot}`;
-      }, 1500);
-    };
+    } catch (err) {
+        console.error("Logout Error:", err.message);
+        // We alert, but we don't STOP. We still want to clear the local session.
+    } finally {
+        // 3. SECURE THE BROWSER: Wipe the session data locally
+        localStorage.removeItem("session_data");
+
+        // 4. Redirect with a "clean" URL (No userId, just device/slot)
+        setTimeout(() => {
+            window.location.href = `index.html?device=${device}&slot=${slot}`;
+        }, 1200);
+    }
+};
+
   </script>
 </body>
 </html>
