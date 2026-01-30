@@ -22,7 +22,7 @@
     <div id="userDetails" class="info">
       Loading session details...
     </div>
-    <button id="logoutBtn">Logout</button>
+    <button class="hidden" id="logoutBtn">Logout</button>
   </div>
 
   <script type=module>
@@ -89,34 +89,27 @@
         <strong>Slot:</strong> ${slot}<br>
         <strong>User ID:</strong> ${userId}
       `;
+      logoutBtn.classList.remove("hidden");
     }
 
-    // 2. Handle Logout
     logoutBtn.onclick = async () => {
-    // 1. UI Protection
     logoutBtn.disabled = true;
     messageEl.textContent = "Finalizing session...";
     
     try {
-        // 2. Database Sync: Mark session as finished
         const { error } = await client
             .from("rack_sessions")
-            .update({ status: 3 })
+            .update({ status: 3, timeout: new Date().toISOString() }) 
             .eq("device_uuid", device)
             .eq("slot", slot)
-            .eq("user_id", userId) // Added for extra precision
+            .eq("user_id", userId)
             .eq("status", 1);
 
         if (error) throw error;
-
     } catch (err) {
         console.error("Logout Error:", err.message);
-        // We alert, but we don't STOP. We still want to clear the local session.
     } finally {
-        // 3. SECURE THE BROWSER: Wipe the session data locally
         localStorage.removeItem("session_data");
-
-        // 4. Redirect with a "clean" URL (No userId, just device/slot)
         setTimeout(() => {
             window.location.href = `index.html?device=${device}&slot=${slot}`;
         }, 1200);
