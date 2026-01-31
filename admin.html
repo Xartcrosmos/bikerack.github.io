@@ -3,266 +3,686 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>BikeRack Admin Dashboard</title>
-  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <title>BikeRack Admin (UI Only)</title>
 
   <style>
-    body{margin:0;font-family:Arial;background:#f5f6fa}
+    body{margin:0;font-family:Arial, Helvetica, sans-serif;background:#f3f4f6}
 
-    /* TOP BAR */
-    .topbar{
-      height:60px;
-      background:#111827;
-      color:white;
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      padding:0 20px;
-    }
+    .topbar{height:80px;background:#0b6edc;color:white;display:flex;align-items:center;justify-content:space-between;padding:0 28px;box-shadow:0 2px 6px rgba(0,0,0,.15)}
 
-    .title{font-size:18px;font-weight:bold}
+    .brand{display:flex;flex-direction:column;line-height:1.1}
+    .brand-title{font-size:22px;font-weight:800}
+    .brand-sub{font-size:12px;opacity:.85}
 
-    .logout{cursor:pointer;background:#ef4444;border:none;color:white;padding:8px 14px;border-radius:6px}
+    .right-area{display:flex;align-items:center;gap:15px;font-size:14px}
+    .logout{background:white;color:#0b6edc;border:none;padding:6px 12px;border-radius:6px;cursor:pointer}
 
-    /* LAYOUT */
-    .container{display:flex;height:calc(100vh - 60px)}
+    .modal{position:fixed;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:.15s}
+    .modal.show{opacity:1;pointer-events:auto}
 
-    /* SIDEBAR */
-    .sidebar{
-      width:220px;
-      background:#1f2937;
-      color:white;
-      transition:.2s;
-      padding-top:15px;
-    }
+    .modal-box{background:white;width:360px;padding:22px;border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.2)}
+    .modal-title{font-weight:700;margin-bottom:8px}
+    .modal-actions{display:flex;gap:10px;margin-top:16px}
 
+    .btn{flex:1;padding:8px;border:none;border-radius:8px;cursor:pointer;font-size:13px}
+    .btn-confirm{background:#0b6edc;color:white}
+    .btn-cancel{background:#e5e7eb}
+
+    .wrapper{display:flex;height:calc(100vh - 80px)}
+
+    .sidebar{width:230px;background:#fff;border-right:1px solid #e5e7eb;padding:18px 10px;display:flex;flex-direction:column;transition:.2s}
     .sidebar.closed{width:60px}
 
-    .menu-btn{
-      padding:12px 16px;
-      cursor:pointer;
-    }
+    .toggle,.menu{display:flex;align-items:center;gap:14px;padding:14px 18px;margin:10px 6px;border-radius:12px;cursor:pointer;font-weight:600}
+    .menu span{white-space:nowrap;transition:opacity .15s,width .15s;opacity:1}
+    .sidebar.closed .menu span{opacity:0;width:0;overflow:hidden}
+    .menu:hover{background:#e2e8f0}
+    .menu.active{background:#d6dde4}
 
-    .menu-btn:hover{background:#374151}
+    #settingsBtn{margin-top:auto}
 
-    .toggle{
-      text-align:center;
-      font-size:18px;
-      cursor:pointer;
-      padding:10px;
-      border-bottom:1px solid #374151;
-    }
+    .icon{width:18px;height:18px;flex-shrink:0;fill:#0f172a}
 
-    /* MAIN */
-    .main{
-      flex:1;
-      padding:20px;
-      overflow:auto;
-      background:white;
-    }
+    .main{flex:1;padding:25px}
 
-    h2{margin-top:0}
+    .card{background:white;padding:20px;border-radius:8px;min-height:300px}
 
-    table{
-      border-collapse:collapse;
-      width:100%;
-      margin-top:15px;
-    }
+    /* logs search bar */
+    .card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+    .log-search{padding:8px 12px 8px 34px;border:1px solid #e5e7eb;border-radius:8px;font-size:13px;width:260px;outline:none}
+    .search-wrap{position:relative;display:none}
+    .header-actions{display:flex;align-items:center;gap:8px}
+    .filter-btn{width:34px;height:34px;border:1px solid #e5e7eb;border-radius:8px;background:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer}
+    .filter-btn:hover{background:#f1f5f9}
+    .filter-icon{width:16px;height:16px;fill:#475569}
+    .search-icon{position:absolute;left:10px;top:50%;transform:translateY(-50%);width:14px;height:14px;fill:#64748b;pointer-events:none}
+    .log-search:focus{border-color:#0b6edc;box-shadow:0 0 0 2px rgba(11,110,220,.15)}
 
-    th,td{
-      border:1px solid #ddd;
-      padding:8px;
-      text-align:center;
-      font-size:14px;
-    }
+    table{width:100%;border-collapse:collapse;font-size:14px}
+    th,td{padding:10px 12px;border-bottom:1px solid #e5e7eb;text-align:center}
+    tbody tr:hover{background:#e8f0fe}
 
-    th{background:#f3f4f6}
+    .badge{padding:4px 8px;border-radius:6px;font-size:12px;font-weight:600}
+    .badge-active{background:#dcfce7;color:#166534}
+    .badge-idle{background:#e5e7eb;color:#374151}
 
-    button{
-      padding:6px 10px;
-      margin:2px;
-      cursor:pointer;
-    }
+    .action-btn{border:none;padding:5px 8px;border-radius:6px;cursor:pointer;font-size:12px;margin-right:6px}
+    .edit{background:#dbeafe}
+    .delete{background:#fee2e2}
 
-    .hidden{display:none}
-    .muted{color:#666;font-size:13px}
+    .context-menu{position:fixed;background:#fff;border:1px solid #e5e7eb;border-radius:8px;box-shadow:0 6px 18px rgba(0,0,0,.15);display:none;flex-direction:column;z-index:1000}
+    .context-menu button{border:none;background:none;padding:10px 16px;text-align:left;cursor:pointer}
+    .context-menu button:hover{background:#e8f0fe}
+
+    /* ===== SETTINGS PILLS ===== */
+    .settings-tabs{display:flex;gap:12px;margin:8px 0 16px 0;padding-bottom:12px;border-bottom:1px solid #e5e7eb}
+    .tab-pill{background:#f1f5f9;border:1px solid #e5e7eb;padding:7px 14px;border-radius:999px;font-size:13px;font-weight:600;cursor:pointer}
+    .tab-pill:hover{background:#e2e8f0}
+    .tab-pill.active{background:#0b6edc;color:white;border-color:#0b6edc}
+    .settings-content{min-height:200px;font-size:14px}
+
+    /* profile panel */
+    .profile-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+    .profile-card{border:1px solid #e5e7eb;border-radius:10px;padding:14px;background:#f8fafc}
+    .profile-card h4{margin:0 0 10px 0;font-size:13px}
+    .profile-field{display:flex;flex-direction:column;gap:6px;margin-bottom:8px;font-size:13px}
+    .profile-field input{padding:7px 10px;border:1px solid #e5e7eb;border-radius:6px}
+    .secure-btn{background:#0b6edc;color:#fff;border:none;border-radius:8px;padding:7px 12px;cursor:pointer}
+    .uuid-box{font-family:monospace;font-size:12px;background:#fff;border:1px dashed #e5e7eb;padding:6px;border-radius:6px;word-break:break-all}
+
+    /* units panel */
+    .units-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;font-size:14px;font-weight:600}
+    .units-stats{display:flex;gap:24px}
+    .add-unit-btn{background:#0b6edc;color:#fff;border:none;border-radius:8px;padding:6px 12px;cursor:pointer;font-size:13px}
+    .unclaim-btn{background:#fee2e2;border:none;border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer}
+    .add-row td{padding:12px 0}
+    .add-row button{width:100%;background:#f1f5f9;border:1px dashed #cbd5e1;border-radius:8px;padding:8px;cursor:pointer;font-weight:600}
+
+    /* add unit modal */
+    .unit-field{display:flex;flex-direction:column;gap:6px;margin-bottom:10px;font-size:13px}
+    .unit-field input{padding:7px 10px;border:1px solid #e5e7eb;border-radius:6px}
   </style>
 </head>
+
 <body>
 
-<!-- TOP BAR -->
 <div class="topbar">
-  <div class="title">🚲 BikeRack Admin</div>
-  <button class="logout" id="logoutBtn">Logout</button>
+  <div class="brand">
+    <div class="brand-title">BikeRack</div>
+    <div class="brand-sub">Access Manager Dashboard</div>
+  </div>
+  <div class="right-area">
+    <span>Welcome, Admin</span>
+    <button class="logout">Logout</button>
+  </div>
 </div>
 
-<div class="container">
-
-  <!-- SIDEBAR -->
+<div class="wrapper">
   <div class="sidebar" id="sidebar">
     <div class="toggle" id="toggleBtn">☰</div>
-    <div class="menu-btn" id="viewRackBtn">View Racks</div>
-    <div class="menu-btn" id="usersBtn">Manage Users</div>
-    <div class="menu-btn" id="logsBtn">Log Sessions</div>
+
+    <div class="menu active" id="rackBtn">
+      <svg class="icon" viewBox="0 0 24 24"><path d="M12 3l9 8h-3v9h-5v-6H11v6H6v-9H3z"/></svg>
+      <span>View Racks</span>
+    </div>
+
+    <div class="menu" id="usersBtn">
+      <svg class="icon" viewBox="0 0 24 24"><path d="M12 12a5 5 0 100-10 5 5 0 000 10zm-8 9a8 8 0 1116 0H4z"/></svg>
+      <span>Manage Users</span>
+    </div>
+
+    <div class="menu" id="logsBtn">
+      <svg class="icon" viewBox="0 0 24 24"><path d="M4 5h16v2H4zm0 6h16v2H4zm0 6h16v2H4z"/></svg>
+      <span>View Logs</span>
+    </div>
+
+    <div class="menu" id="settingsBtn">
+      <svg class="icon" viewBox="0 0 24 24"><path d="M19.14 12.94a7.49 7.49 0 000-1.88l2.03-1.58-2-3.46-2.39.96a7.6 7.6 0 00-1.63-.95l-.36-2.54h-4l-.36 2.54c-.58.23-1.12.55-1.63.95l-2.39-.96-2 3.46 2.03 1.58a7.49 7.49 0 000 1.88L2.41 14.5l2 3.46 2.39-.96c.51.4 1.05.72 1.63.95l.36 2.54h4l.36-2.54c.58-.23 1.12-.55 1.63-.95l2.39.96 2-3.46-2.03-1.56zM12 15.5A3.5 3.5 0 1112 8a3.5 3.5 0 010 7.5z"/></svg>
+      <span>Settings</span>
+    </div>
   </div>
 
-  <!-- MAIN VIEW -->
   <div class="main">
-
-    <h2 id="pageTitle">Dashboard</h2>
-    <div id="info" class="muted"></div>
-
-    <!-- TABLE -->
-    <table id="table">
-      <thead></thead>
-      <tbody></tbody>
-    </table>
-
+    <div class="card">
+      <div class="card-header">
+        <h2 id="pageTitle">View Racks</h2>
+        <div class="header-actions">
+          <div class="search-wrap" id="searchWrap">
+            <svg class="search-icon" viewBox="0 0 24 24"><path d="M10 2a8 8 0 105.29 14.29l4.21 4.21 1.41-1.41-4.21-4.21A8 8 0 0010 2zm0 2a6 6 0 110 12 6 6 0 010-12z"/></svg>
+            <input id="logSearch" class="log-search" placeholder="Search for User or User Id" />
+          </div>
+          <button id="filterBtn" class="filter-btn" style="display:none">
+            <svg class="filter-icon" viewBox="0 0 24 24"><path d="M3 5h18v2H3zm4 6h10v2H7zm3 6h4v2h-4z"/></svg>
+          </button>
+        </div>
+      </div>
+      <div id="tableContainer"></div>
+    </div>
   </div>
 </div>
 
+<!-- Rack info modal -->
+<div class="modal" id="rackInfoModal">
+  <div class="modal-box">
+    <div class="modal-title">Rack Details</div>
+    <div id="rackInfoContent"></div>
+    <div class="modal-actions"><button class="btn btn-confirm" id="closeRackInfo">Close</button></div>
+  </div>
+</div>
+
+<!-- Filter logs modal -->
+<div class="modal" id="filterModal">
+  <div class="modal-box">
+    <div class="modal-title">Filter Logs</div>
+    <div style="display:flex;flex-direction:column;gap:10px;font-size:13px">
+      <select id="filterUnit"><option value="">All Units</option><option>A</option></select>
+      <select id="filterSlot"><option value="">All Slots</option><option>1</option><option>2</option></select>
+      <input id="filterDate" type="date" />
+      <select id="filterSort">
+        <option value="">Sort Total</option>
+        <option value="asc">Ascending</option>
+        <option value="desc">Descending</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-cancel" id="cancelFilter">Close</button>
+      <button class="btn btn-confirm" id="applyFilter">Apply</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit user modal -->
+<div class="modal" id="editUserModal">
+  <div class="modal-box">
+    <div class="modal-title">Edit User</div>
+    <div style="display:flex;flex-direction:column;gap:10px;font-size:13px">
+      <input id="editName" placeholder="Name" />
+      <input id="editContact" placeholder="Contact" />
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-cancel" id="cancelEditUser">Cancel</button>
+      <button class="btn btn-confirm" id="saveEditUser">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Delete user modal -->
+<div class="modal" id="deleteUserModal">
+  <div class="modal-box">
+    <div class="modal-title">Delete User</div>
+    <div>Are you sure you want to delete this user?</div>
+    <div class="modal-actions">
+      <button class="btn btn-cancel" id="cancelDeleteUser">No</button>
+      <button class="btn btn-confirm" id="confirmDeleteUser">Yes</button>
+    </div>
+  </div>
+</div>
+
+<!-- Unclaim unit confirm modal -->
+<div class="modal" id="unclaimUnitModal">
+  <div class="modal-box">
+    <div class="modal-title">Unclaim Unit</div>
+    <div>Are you sure you want to unclaim this unit?</div>
+    <div class="modal-actions">
+      <button class="btn btn-cancel" id="cancelUnclaimUnit">No</button>
+      <button class="btn btn-confirm" id="confirmUnclaimUnit">Yes</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add unit modal -->
+<div class="modal" id="addUnitModal">
+  <div class="modal-box">
+    <div class="modal-title">Add Unit</div>
+    <div class="unit-field">
+      <label>Device UUID</label>
+      <input id="unitUUIDInput" placeholder="Enter device uuid" />
+    </div>
+    <div class="unit-field">
+      <label>One-Time-Claim (OTC)</label>
+      <input id="unitOTCInput" placeholder="Enter claim code" />
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-cancel" id="cancelAddUnit">Cancel</button>
+      <button class="btn btn-confirm" id="confirmAddUnit">Add</button>
+    </div>
+  </div>
+</div>
+
+<!-- Profile edit confirm modal -->
+<div class="modal" id="profileConfirmModal">
+  <div class="modal-box">
+    <div class="modal-title">Confirm Edit</div>
+    <div>Allow editing email and password?</div>
+    <div class="modal-actions">
+      <button class="btn btn-cancel" id="cancelProfileEdit">No</button>
+      <button class="btn btn-confirm" id="confirmProfileEdit">Yes</button>
+    </div>
+  </div>
+</div>
+
+<!-- Logout modal -->
+<div class="modal" id="logoutModal">
+  <div class="modal-box">
+    <div class="modal-title">Logout</div>
+    <div>Are you sure you want to logout?</div>
+    <div class="modal-actions">
+      <button class="btn btn-cancel" id="cancelLogout">No</button>
+      <button class="btn btn-confirm" id="confirmLogout">Yes</button>
+    </div>
+  </div>
+</div>
+
+<!-- Context menus -->
+<div class="context-menu" id="rackMenu"><button id="moreInfoBtn">More info</button></div>
+<div class="context-menu" id="usersMenu"><button id="userEditBtn">Edit</button><button id="userDeleteBtn">Delete</button></div>
+
 <script>
-/* ========= CONFIG ========= */
-const SUPABASE_URL = "https://lguyiavotyrxdlyhsvmz.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxndXlpYXZvdHlyeGRseWhzdm16Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkxNzQ0MjQsImV4cCI6MjA4NDc1MDQyNH0.f1hT0B68mv2lxVsQldk3ABx_0yBBUK2t1fcRHWGhmyM";
-const client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// ================= FIXED VERSION =================
+// Root cause: extra stray "}" in attachUsersContext() broke JS parsing
+// Function now properly closed
 
-/* ========= ELEMENTS ========= */
-const sidebar = document.getElementById("sidebar");
-const tableHead = document.querySelector("#table thead");
-const tableBody = document.querySelector("#table tbody");
-const pageTitle = document.getElementById("pageTitle");
-const info = document.getElementById("info");
+const sidebar=document.getElementById("sidebar");
+const toggleBtn=document.getElementById("toggleBtn");
+const rackBtn=document.getElementById("rackBtn");
+const usersBtn=document.getElementById("usersBtn");
+const logsBtn=document.getElementById("logsBtn");
+const settingsBtn=document.getElementById("settingsBtn");
+const title=document.getElementById("pageTitle");
+const logSearch=document.getElementById("logSearch");
+const searchWrap=document.getElementById("searchWrap");
+const filterBtn=document.getElementById("filterBtn");
+const filterModal=document.getElementById("filterModal");
+const cancelFilter=document.getElementById("cancelFilter");
+const applyFilter=document.getElementById("applyFilter");
+const filterUnit=document.getElementById("filterUnit");
+const filterSlot=document.getElementById("filterSlot");
+const filterDate=document.getElementById("filterDate");
+const filterSort=document.getElementById("filterSort");
+const container=document.getElementById("tableContainer");
 
-/* ========= PARAMS ========= */
-const params = new URLSearchParams(location.search);
-const adminId = params.get("admin_id");
+const logoutBtn=document.querySelector(".logout");
+const logoutModal=document.getElementById("logoutModal");
+const cancelLogout=document.getElementById("cancelLogout");
+const confirmLogout=document.getElementById("confirmLogout");
 
-if(!adminId){
-  alert("Unauthorized");
-  location.href = "index.html";
+const rackMenu=document.getElementById("rackMenu");
+const usersMenu=document.getElementById("usersMenu");
+const moreInfoBtn=document.getElementById("moreInfoBtn");
+const userEditBtn=document.getElementById("userEditBtn");
+const userDeleteBtn=document.getElementById("userDeleteBtn");
+const rackInfoModal=document.getElementById("rackInfoModal");
+const rackInfoContent=document.getElementById("rackInfoContent");
+const closeRackInfo=document.getElementById("closeRackInfo");
+
+const deleteUserModal=document.getElementById("deleteUserModal");
+const editUserModal=document.getElementById("editUserModal");
+const cancelEditUser=document.getElementById("cancelEditUser");
+const saveEditUser=document.getElementById("saveEditUser");
+const editName=document.getElementById("editName");
+const editContact=document.getElementById("editContact");
+const cancelDeleteUser=document.getElementById("cancelDeleteUser");
+const confirmDeleteUser=document.getElementById("confirmDeleteUser");
+
+// add unit modal refs
+const addUnitModal=document.getElementById("addUnitModal");
+const cancelAddUnit=document.getElementById("cancelAddUnit");
+const confirmAddUnit=document.getElementById("confirmAddUnit");
+const unitUUIDInput=document.getElementById("unitUUIDInput");
+const unitOTCInput=document.getElementById("unitOTCInput");
+
+// unclaim modal refs
+const unclaimUnitModal=document.getElementById("unclaimUnitModal");
+const cancelUnclaimUnit=document.getElementById("cancelUnclaimUnit");
+const confirmUnclaimUnit=document.getElementById("confirmUnclaimUnit");
+
+let selectedRackRow=null;
+let selectedUserRow=null;
+let deleteTargetRow=null;
+let editTargetRow=null;
+let unclaimTargetRow=null;
+
+// sidebar toggle
+
+toggleBtn.onclick=()=>sidebar.classList.toggle("closed");
+
+// logout
+
+logoutBtn.onclick=()=>logoutModal.classList.add("show");
+cancelLogout.onclick=()=>logoutModal.classList.remove("show");
+confirmLogout.onclick=()=>{alert("Logged out (UI demo)");logoutModal.classList.remove("show");};
+
+// tables
+
+function rackTable(){
+return `<table><thead><tr><th>UNIT</th><th>SLOT</th><th>USER</th><th>STATUS</th></tr></thead><tbody>
+<tr><td>A</td><td>1</td><td>JC</td><td><span class='badge badge-active'>ACTIVE</span></td></tr>
+<tr><td>A</td><td>2</td><td>---</td><td><span class='badge badge-idle'>IDLE</span></td></tr>
+</tbody></table>`;
 }
 
-/* ========= INIT ========= */
-window.addEventListener("load", async ()=>{
-  const { data: devices } = await client
-    .from("device_unit")
-    .select("uuid")
-    .eq("admin_id", adminId);
+function usersTable(){
+return `<table><thead><tr><th>REGISTERED AT</th><th>UNIT</th><th>NAME</th><th>CONTACT</th><th>ACTIONS</th></tr></thead><tbody>
+<tr><td>2026-01-29</td><td>A</td><td>JC</td><td>0992313532</td><td><button class='action-btn edit'>Edit</button><button class='action-btn delete'>Delete</button></td></tr>
+<tr><td>2026-01-30</td><td>A</td><td>Maria</td><td>0999999999</td><td><button class='action-btn edit'>Edit</button><button class='action-btn delete'>Delete</button></td></tr>
+</tbody></table>`;
+}
 
-  if(!devices || devices.length===0){
-    alert("No devices found");
-    location.href="index.html";
-  }
+function logsTable(){
+return `<table><thead><tr><th>UNIT</th><th>SLOT</th><th>USER</th><th>USER_ID</th><th>DATE</th><th>TIME IN</th><th>TIME OUT</th><th>TOTAL</th></tr></thead><tbody>
+<tr><td>A</td><td>1</td><td>JC</td><td>12</td><td>2026-01-29</td><td>09:40</td><td>10:30</td><td>50m</td></tr>
+<tr><td>A</td><td>2</td><td>Maria</td><td>15</td><td>2026-01-29</td><td>11:10</td><td>12:00</td><td>50m</td></tr>
+</tbody></table>`;
+}
 
-  window._devices = devices.map(d=>d.uuid);
-  info.textContent = `Units owned: ${devices.length}`;
+// context menus
 
-  loadRacks();
-});
+function attachRackContext(){
+  container.querySelectorAll("tbody tr").forEach(r=>{
+    r.oncontextmenu=e=>{
+      e.preventDefault();
+      selectedRackRow=r;
+      rackMenu.style.display="flex";
+      rackMenu.style.left=e.pageX+"px";
+      rackMenu.style.top=e.pageY+"px";
+    };
+  });
+}
 
-/* ========= SIDEBAR ========= */
-toggleBtn.onclick = ()=> sidebar.classList.toggle("closed");
-viewRackBtn.onclick = loadRacks;
-usersBtn.onclick = loadUsers;
-logsBtn.onclick = loadLogs;
+function attachUsersContext(){
+  container.querySelectorAll("tbody tr").forEach(r=>{
 
-logoutBtn.onclick = ()=>{
-  location.href="index.html";
-};
+    r.oncontextmenu=e=>{
+      e.preventDefault();
+      selectedUserRow=r;
+      usersMenu.style.display="flex";
+      usersMenu.style.left=e.pageX+"px";
+      usersMenu.style.top=e.pageY+"px";
+    };
 
-/* ========= VIEW RACKS ========= */
-async function loadRacks(){
-  pageTitle.textContent = "View Racks";
+    const delBtn=r.querySelector('.delete');
+    if(delBtn){
+      delBtn.onclick=(ev)=>{
+        ev.stopPropagation();
+        deleteTargetRow=r;
+        deleteUserModal.classList.add('show');
+      };
+    }
 
-  tableHead.innerHTML = "<tr><th>UNIT</th><th>SLOT</th><th>NAME</th><th>STATUS</th></tr>";
-  tableBody.innerHTML = "";
-
-  const { data } = await client
-    .from("rack_sessions")
-    .select("device_uuid, slot, user_id, status");
-
-  const { data: regs } = await client
-    .from("registration")
-    .select("id,name");
-
-  const map = {};
-  regs.forEach(r=>map[r.id]=r.name);
-
-  window._devices.forEach((uuid, i)=>{
-    const unitName = String.fromCharCode(65+i);
-
-    for(let s=1; s<=2; s++){
-      const row = data?.find(r=>r.device_uuid===uuid && r.slot===s && r.status===1);
-      const name = row ? map[row.user_id] || "---" : "---";
-      const status = row ? "ACTIVE" : "---";
-
-      tableBody.innerHTML += `<tr><td>${unitName}</td><td>${s}</td><td>${name}</td><td>${status}</td></tr>`;
+    const editBtn=r.querySelector('.edit');
+    if(editBtn){
+      editBtn.onclick=(ev)=>{
+        ev.stopPropagation();
+        editTargetRow=r;
+        editName.value=r.children[2].innerText;
+        editContact.value=r.children[3].innerText;
+        editUserModal.classList.add('show');
+      };
     }
   });
 }
 
-/* ========= USERS ========= */
-async function loadUsers(){
-  pageTitle.textContent = "Manage Users";
+// page switch
 
-  tableHead.innerHTML = "<tr><th>DATE</th><th>NAME</th><th>CONTACT</th><th>ACTIONS</th></tr>";
-  tableBody.innerHTML = "";
+function setActive(btn,titleText,html){
+  document.querySelectorAll('.menu').forEach(m=>m.classList.remove('active'));
+  btn.classList.add('active');
+  title.textContent=titleText;
+  container.innerHTML=html;
 
-  const { data } = await client
-    .from("registration")
-    .select("id, created_at, name, contact");
+  // show search only for logs
+  searchWrap.style.display = (titleText==='View Logs') ? 'block' : 'none';
+  filterBtn.style.display = (titleText==='View Logs') ? 'flex' : 'none';
+  logSearch.value='';
 
-  data?.forEach(u=>{
-    tableBody.innerHTML += `
-      <tr>
-        <td>${u.created_at}</td>
-        <td>${u.name}</td>
-        <td>${u.contact}</td>
-        <td>
-          <button onclick="deleteUser('${u.id}')">Delete</button>
-        </td>
-      </tr>`;
+  if(titleText==='View Racks') attachRackContext();
+  if(titleText==='Manage Users') attachUsersContext();
+}
+
+// rack info
+
+moreInfoBtn.onclick=()=>{
+  if(!selectedRackRow) return;
+  const cells=[...selectedRackRow.children].map(c=>c.innerText);
+  const headers=[...container.querySelectorAll('th')].map(h=>h.innerText);
+  rackInfoContent.innerHTML=headers.map((h,i)=>`<div><b>${h}:</b> ${cells[i]}</div>`).join('');
+  rackInfoModal.classList.add('show');
+};
+
+closeRackInfo.onclick=()=>rackInfoModal.classList.remove('show');
+
+// user actions
+
+userEditBtn.onclick=()=>{
+  if(!selectedUserRow) return;
+  editTargetRow=selectedUserRow;
+  editName.value=selectedUserRow.children[2].innerText;
+  editContact.value=selectedUserRow.children[3].innerText;
+  editUserModal.classList.add('show');
+};
+
+userDeleteBtn.onclick=()=>{
+  if(!selectedUserRow) return;
+  deleteTargetRow=selectedUserRow;
+  deleteUserModal.classList.add('show');
+};
+
+cancelDeleteUser.onclick=()=>deleteUserModal.classList.remove('show');
+
+cancelEditUser.onclick=()=>editUserModal.classList.remove('show');
+
+saveEditUser.onclick=()=>{
+  if(!editTargetRow) return;
+  editTargetRow.children[2].innerText=editName.value;
+  editTargetRow.children[3].innerText=editContact.value;
+  editUserModal.classList.remove('show');
+};
+
+confirmDeleteUser.onclick=()=>{
+  if(deleteTargetRow) deleteTargetRow.remove();
+  deleteUserModal.classList.remove('show');
+};
+
+// filter modal logic
+filterBtn.onclick=()=>filterModal.classList.add('show');
+cancelFilter.onclick=()=>filterModal.classList.remove('show');
+
+applyFilter.onclick=()=>{
+  const unit=filterUnit.value;
+  const slot=filterSlot.value;
+  const date=filterDate.value;
+  const sort=filterSort.value;
+
+  const rows=[...container.querySelectorAll('tbody tr')];
+
+  rows.forEach(r=>{
+    const cells=[...r.children].map(c=>c.innerText);
+    const show=(
+      (!unit || cells[0]===unit) &&
+      (!slot || cells[1]===slot) &&
+      (!date || cells[4]===date)
+    );
+    r.style.display=show?'':'none';
   });
-}
 
-async function deleteUser(id){
-  if(!confirm("Delete this user?")) return;
-  await client.from("registration").delete().eq("id", id);
-  loadUsers();
-}
+  if(sort){
+    const tbody=container.querySelector('tbody');
+    const visibleRows=rows.filter(r=>r.style.display!=='none');
+    visibleRows.sort((a,b)=>{
+      const ta=parseInt(a.children[7].innerText);
+      const tb=parseInt(b.children[7].innerText);
+      return sort==='asc'?ta-tb:tb-ta;
+    });
+    visibleRows.forEach(r=>tbody.appendChild(r));
+  }
 
-/* ========= LOGS ========= */
-async function loadLogs(){
-  pageTitle.textContent = "Log Sessions";
+  filterModal.classList.remove('show');
+};
 
-  tableHead.innerHTML = "<tr><th>SLOT</th><th>NAME</th><th>CONTACT</th><th>TIMEIN</th><th>TIMEOUT</th></tr>";
-  tableBody.innerHTML = "";
+document.addEventListener('click',()=>{
+  rackMenu.style.display='none';
+  usersMenu.style.display='none';
+});
+rackBtn.onclick=()=>setActive(rackBtn,'View Racks',rackTable());
+usersBtn.onclick=()=>setActive(usersBtn,'Manage Users',usersTable());
+logsBtn.onclick=()=>setActive(logsBtn,'View Logs',logsTable());
+  
+// ===== SETTINGS LAYOUT =====
+function settingsLayout(){
+return `
+<div class="settings-tabs">
+  <button class="tab-pill active" data-tab="profile">Profile</button>
+  <button class="tab-pill" data-tab="units">Units</button>
+  
+</div>
+<div id="settingsContent" class="settings-content"></div>
+`;}
 
-  const { data } = await client
-    .from("rack_sessions")
-    .select("device_uuid, slot, user_id, timein, timeout");
+function attachSettingsTabs(){
+  const content=document.getElementById('settingsContent');
+  const profileConfirmModal=document.getElementById('profileConfirmModal');
+  const cancelProfileEdit=document.getElementById('cancelProfileEdit');
+  const confirmProfileEdit=document.getElementById('confirmProfileEdit');
+  const tabs=[...container.querySelectorAll('.tab-pill')];
 
-  const { data: regs } = await client
-    .from("registration")
-    .select("id,name,contact");
+  function profilePanel(){
+    return `
+    <div class="profile-grid">
+      <div class="profile-card">
+        <h4>Admin Information</h4>
+        <div class="profile-field"><label>Email</label><input id="profileEmail" value="admin@email.com" disabled></div>
+        <div class="profile-field"><label>Password</label><input id="profilePass" type="password" value="********" disabled></div>
+        <button id="profileEditBtn" class="secure-btn">Edit</button>
+      </div>
 
-  const map = {};
-  regs.forEach(r=>map[r.id]=r);
+      <div class="profile-card">
+        <h4>Private Identifiers</h4>
+        <div class="profile-field">
+          <label>Profile UUID</label>
+          <div class="uuid-box">7c9a-2fd1-8aa3-4d21</div>
+        </div>
+        <div class="profile-field">
+          <label>Device UUID</label>
+          <div class="uuid-box">dev-8fa2-11ce-9921</div>
+        </div>
+      </div>
+    </div>
+    `;
+  }
 
-  data?.filter(r=>window._devices.includes(r.device_uuid)).forEach(r=>{
-    const user = map[r.user_id] || {};
+  function render(tab){
+    if(tab==='profile'){
+      content.innerHTML=profilePanel();
 
-    tableBody.innerHTML += `
-      <tr>
-        <td>${r.slot}</td>
-        <td>${user.name || '---'}</td>
-        <td>${user.contact || '---'}</td>
-        <td>${r.timein || '-'}</td>
-        <td>${r.timeout || '-'}</td>
-      </tr>`;
+      const email=document.getElementById('profileEmail');
+      const pass=document.getElementById('profilePass');
+      const btn=document.getElementById('profileEditBtn');
+
+      btn.onclick=()=>{
+        const isEditing=!email.disabled;
+
+        if(!isEditing){
+          profileConfirmModal.classList.add('show');
+
+          confirmProfileEdit.onclick=()=>{
+            email.disabled=false;
+            pass.disabled=false;
+            btn.textContent='Save';
+            profileConfirmModal.classList.remove('show');
+          };
+
+          cancelProfileEdit.onclick=()=>profileConfirmModal.classList.remove('show');
+        }
+        else{
+          email.disabled=true;
+          pass.disabled=true;
+          btn.textContent='Edit';
+          alert('Credentials saved (UI demo)');
+        }
+      };
+    }
+
+    if(tab==='units'){
+      const units=[
+        {uuid:'unit-7a21-9921',date:'2026-01-20'},
+        {uuid:'unit-3bc9-5512',date:'2026-01-25'}
+      ];
+
+      const rows=units.map(u=>`<tr><td>${u.uuid}</td><td>${u.date}</td><td><button class='unclaim-btn'>UNCLAIM</button></td></tr>`).join('');
+
+      content.innerHTML=`
+        <div class='units-top'>
+          <div class='units-stats'>
+            <span>Units Owned : ${units.length}</span>
+            <span>Total Slots : ${units.length*2}</span>
+          </div>
+          <button class='add-unit-btn' id='topAddUnitBtn'>+ Add Unit</button>
+        </div>
+
+        <table>
+          <thead>
+            <tr><th>UNIT UUID</th><th>DATE CLAIMED</th><th>ACTION</th></tr>
+          </thead>
+          <tbody>
+            ${rows}
+            <tr class='add-row'><td colspan='3'><button id='bottomAddUnitBtn'>+ Add Unit</button></td></tr>
+          </tbody>
+        </table>
+      `;
+
+      const openAddModal=()=>{
+        unitUUIDInput.value='';
+        unitOTCInput.value='';
+        addUnitModal.classList.add('show');
+      };
+
+      document.getElementById('topAddUnitBtn').onclick=openAddModal;
+      document.getElementById('bottomAddUnitBtn').onclick=openAddModal;
+
+      cancelAddUnit.onclick=()=>addUnitModal.classList.remove('show');
+
+      confirmAddUnit.onclick=()=>{
+        const uuid=unitUUIDInput.value.trim();
+        const otc=unitOTCInput.value.trim();
+        if(!uuid || !otc) return alert('Please fill all fields');
+        alert('Unit added (UI demo)');
+        addUnitModal.classList.remove('show');
+      };
+
+      content.querySelectorAll('.unclaim-btn').forEach(b=>{
+        b.onclick=(ev)=>{
+          ev.stopPropagation();
+          unclaimTargetRow=b.closest('tr');
+          unclaimUnitModal.classList.add('show');
+        };
+      });
+
+      cancelUnclaimUnit.onclick=()=>unclaimUnitModal.classList.remove('show');
+
+      confirmUnclaimUnit.onclick=()=>{
+        if(unclaimTargetRow) unclaimTargetRow.remove();
+        unclaimUnitModal.classList.remove('show');
+      };
+    }
+  }
+
+  tabs.forEach(btn=>{
+    btn.onclick=()=>{
+      tabs.forEach(t=>t.classList.remove('active'));
+      btn.classList.add('active');
+      render(btn.dataset.tab);
+    };
   });
+
+  render('profile');
 }
+
+settingsBtn.onclick=()=>{
+  setActive(settingsBtn,'Settings',settingsLayout());
+  attachSettingsTabs();
+};
+
+rackBtn.click();
 </script>
 
 </body>
