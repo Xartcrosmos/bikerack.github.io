@@ -172,7 +172,7 @@ loginBtn.onclick=async()=>{
   const email=loginEmail.value.trim(), pass=loginPass.value.trim();
   const {data}=await client.from("admins").select("*").eq("email",email).eq("password_hash",pass).maybeSingle();
   if(!data) return showMsg("Invalid login",true);
-  localStorage.setItem("admin_id",data.id); location.href="admin.html";
+  localStorage.setItem("admin_id",data.id); location.href='admin.html?id=${data.id}';
 };
 
 /* ========= FINGERPRINT LOGIN (SLOT) ========= */
