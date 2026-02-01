@@ -310,8 +310,39 @@ const storedId = localStorage.getItem("admin_id");
         
         return allUnit;
         }
+  
+  async function buildCompactRackTable() {
+    try {
+        // Step 1: Get owned UUIDs
+        const { data: devices } = await client.from('units').select('uuid').eq('admin_id', storedId);
+        const allUnitUUIDs = devices.map(d => d.uuid);
 
-  fetchAndDisplayRackData(); 
+        if (allUnitUUIDs.length === 0) return document.getElementById('rackTableContainer').innerHTML = "<p>No units found.</p>";
+
+        // Step 2: Fetch rack session data filtered by UUIDs
+        const { data: rows } = await client.from('rack_sessions').select('device_uuid, slot, user_id, status').in('device_uuid', allUnitUUIDs).order('created_at', { ascending: false });
+
+        // Step 3 & 4: Build HTML and display
+        let tbody = '';
+        rows.forEach(r => {
+            let s = `<span class='badge'>UNKNOWN</span>`;
+            if (r.status === 1) s = `<span class='badge badge-active'>ACTIVE</span>`;
+            else if (r.status === 3) s = `<span class='badge badge-idle'>IDLE</span>`;
+            
+            tbody += `<tr><td>${r.device_uuid}</td><td>${r.slot}</td><td>${r.user_id || '---'}</td><td>${s}</td></tr>`;
+        });
+
+        document.getElementById('rackTableContainer').innerHTML = `
+            <table>
+                <thead><tr><th>UNIT</th><th>SLOT</th><th>USER</th><th>STATUS</th></tr></thead>
+                <tbody>${tbody}</tbody>
+            </table>`;
+
+    } catch (e) {
+        console.error("Error loading data:", e.message);
+        document.getElementById('rackTableContainer').innerHTML = "<p>Failed to load data.</p>";
+    }
+}
   
 const sidebar=document.getElementById("sidebar");
 const toggleBtn=document.getElementById("toggleBtn");
@@ -392,51 +423,7 @@ return `<table><thead><tr><th>UNIT</th><th>SLOT</th><th>USER</th><th>STATUS</th>
 </tbody></table>`;
 }
   
-// ASSUMPTION: 'client' is your initialized Supabase client and 'storedId' is available.
-
-// Helper function definitions compacted
-function getStatusBadge(s) {
-    if (s === 1) return `<span class='badge badge-active'>ACTIVE</span>`;
-    if (s === 3) return `<span class='badge badge-idle'>IDLE</span>`;
-    return `<span class='badge'>UNKNOWN</span>`;
-}
-
-function rackTable(rows) {
-    let tbody = '';
-    rows.forEach(r => {
-        tbody += `<tr><td>${r.device_uuid}</td><td>${r.slot}</td><td>${r.user_id || '---'}</td><td>${getStatusBadge(r.status)}</td></tr>`;
-    });
-    return `<table><thead><tr><th>UNIT</th><th>SLOT</th><th>USER</th><th>STATUS</th></tr></thead><tbody>${tbody}</tbody></table>`;
-}
-
-// Main execution function compacted
-async function fetchAndDisplayRackData() {
-    const storedId = localStorage.getItem("admin_id"); 
-    if (!storedId) return;
-
-    try {
-        // Step 1: Get owned UUIDs
-        const { data: devices } = await client.from('units').select('uuid').eq('admin_id', storedId);
-        const allUnitUUIDs = devices.map(d => d.uuid);
-
-        if (allUnitUUIDs.length === 0) {
-            document.getElementById('rackTableContainer').innerHTML = "<p>No units found.</p>";
-            return;
-        }
-
-        // Step 2: Fetch rack session data filtered by UUIDs (the line you requested to compact)
-        const { data: rackSessions } = await client.from('rack_sessions').select('device_uuid, slot, user_id, status, created_at').in('device_uuid', allUnitUUIDs).order('created_at', { ascending: false });
-
-        // Step 3 & 4: Generate and insert table
-        document.getElementById('rackTableContainer').innerHTML = rackTable(rackSessions);
-
-    } catch (e) {
-        console.error("Error loading data:", e.message);
-    }
-}
-
-// Ensure you call this function after the security check passes:
-// (async()=> { await fetchAndDisplayRackData(); })();
+buildCompactRackTable();
 
 function logsTable(){
 return `<table><thead><tr><th>UNIT</th><th>SLOT</th><th>USER</th><th>USER_ID</th><th>DATE</th><th>TIME IN</th><th>TIME OUT</th><th>TOTAL</th></tr></thead><tbody>
