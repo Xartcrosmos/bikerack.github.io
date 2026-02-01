@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>BikeRack Admin (UI Only)</title>
-
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
   <style>
     body{margin:0;font-family:Arial, Helvetica, sans-serif;background:#f3f4f6}
 
@@ -278,9 +278,24 @@
 <div class="context-menu" id="usersMenu"><button id="userEditBtn">Edit</button><button id="userDeleteBtn">Delete</button></div>
 
 <script>
-// ================= FIXED VERSION =================
-// Root cause: extra stray "}" in attachUsersContext() broke JS parsing
-// Function now properly closed
+const SUPABASE_URL = "https://lguyiavotyrxdlyhsvmz.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxndXlpYXZvdHlyeGRseWhzdm16Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkxNzQ0MjQsImV4cCI6MjA4NDc1MDQyNH0.f1hT0B68mv2lxVsQldk3ABx_0yBBUK2t1fcRHWGhmyM";
+const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+const params = new URLSearchParams(window.location.search);
+const adminId = params.get("id");
+
+ const storedData = JSON.parse(localStorage.getItem("session_data"));
+    
+      if (!storedData || storedData.adminId != id) {
+          alert("You don't have access to this profile.");
+          if (storedData && storedData.currentDevice) {
+            window.location.href = `login.html?device=${storedData.id}`;
+          } else {
+            window.location.href = "index.html";
+          }
+          throw new Error("Unauthorized access blocked"); 
+      }
 
 const sidebar=document.getElementById("sidebar");
 const toggleBtn=document.getElementById("toggleBtn");
