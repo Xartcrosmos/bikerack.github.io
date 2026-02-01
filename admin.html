@@ -290,7 +290,7 @@ const storedId = localStorage.getItem("admin_id");
       if (!storedId || storedId !== adminId) {
           alert("You don't have access to this profile.");
           if (storedId) {
-            window.location.href = `admin.html?device=${storedId}`;
+            window.location.href = `admin.html?id=${storedId}`;
           } else {
             window.location.href = "index.html";
           }
