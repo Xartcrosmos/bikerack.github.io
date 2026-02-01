@@ -285,12 +285,12 @@ const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const params = new URLSearchParams(window.location.search);
 const adminId = params.get("id");
 
- const storedData = JSON.parse(localStorage.getItem("session_data"));
+const storedId = localStorage.getItem("admin_id");
     
-      if (!storedData || storedData.adminId != id) {
+      if (!storedId || storedId !== adminId) {
           alert("You don't have access to this profile.");
-          if (storedData && storedData.currentDevice) {
-            window.location.href = `login.html?device=${storedData.id}`;
+          if (storedId) {
+            window.location.href = `admin.html?device=${storedId}`;
           } else {
             window.location.href = "index.html";
           }
