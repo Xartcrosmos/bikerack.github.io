@@ -298,7 +298,7 @@ const storedId = localStorage.getItem("admin_id");
 
   async function getAllOwnedUnits(adminId) {
         const { data, error } = await client
-            .from('units') 
+            .from('device_unit') 
             .select('uuid')
             .eq('admin_id', adminId);
     
@@ -389,13 +389,52 @@ return `<table><thead><tr><th>UNIT</th><th>SLOT</th><th>USER</th><th>STATUS</th>
 <tr><td>A</td><td>2</td><td>---</td><td><span class='badge badge-idle'>IDLE</span></td></tr>
 </tbody></table>`;
 }
+  
+// ASSUMPTION: 'client' is your initialized Supabase client and 'storedId' is available.
 
-function usersTable(){
-return `<table><thead><tr><th>REGISTERED AT</th><th>UNIT</th><th>NAME</th><th>CONTACT</th><th>ACTIONS</th></tr></thead><tbody>
-<tr><td>2026-01-29</td><td>A</td><td>JC</td><td>0992313532</td><td><button class='action-btn edit'>Edit</button><button class='action-btn delete'>Delete</button></td></tr>
-<tr><td>2026-01-30</td><td>A</td><td>Maria</td><td>0999999999</td><td><button class='action-btn edit'>Edit</button><button class='action-btn delete'>Delete</button></td></tr>
-</tbody></table>`;
+// Helper function definitions compacted
+function getStatusBadge(s) {
+    if (s === 1) return `<span class='badge badge-active'>ACTIVE</span>`;
+    if (s === 3) return `<span class='badge badge-idle'>IDLE</span>`;
+    return `<span class='badge'>UNKNOWN</span>`;
 }
+
+function rackTable(rows) {
+    let tbody = '';
+    rows.forEach(r => {
+        tbody += `<tr><td>${r.device_uuid}</td><td>${r.slot}</td><td>${r.user_id || '---'}</td><td>${getStatusBadge(r.status)}</td></tr>`;
+    });
+    return `<table><thead><tr><th>UNIT</th><th>SLOT</th><th>USER</th><th>STATUS</th></tr></thead><tbody>${tbody}</tbody></table>`;
+}
+
+// Main execution function compacted
+async function fetchAndDisplayRackData() {
+    const storedId = localStorage.getItem("admin_id"); 
+    if (!storedId) return;
+
+    try {
+        // Step 1: Get owned UUIDs
+        const { data: devices } = await client.from('units').select('uuid').eq('admin_id', storedId);
+        const allUnitUUIDs = devices.map(d => d.uuid);
+
+        if (allUnitUUIDs.length === 0) {
+            document.getElementById('rackTableContainer').innerHTML = "<p>No units found.</p>";
+            return;
+        }
+
+        // Step 2: Fetch rack session data filtered by UUIDs (the line you requested to compact)
+        const { data: rackSessions } = await client.from('rack_sessions').select('device_uuid, slot, user_id, status, created_at').in('device_uuid', allUnitUUIDs).order('created_at', { ascending: false });
+
+        // Step 3 & 4: Generate and insert table
+        document.getElementById('rackTableContainer').innerHTML = rackTable(rackSessions);
+
+    } catch (e) {
+        console.error("Error loading data:", e.message);
+    }
+}
+
+// Ensure you call this function after the security check passes:
+// (async()=> { await fetchAndDisplayRackData(); })();
 
 function logsTable(){
 return `<table><thead><tr><th>UNIT</th><th>SLOT</th><th>USER</th><th>USER_ID</th><th>DATE</th><th>TIME IN</th><th>TIME OUT</th><th>TOTAL</th></tr></thead><tbody>
