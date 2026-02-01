@@ -310,26 +310,7 @@ const storedId = localStorage.getItem("admin_id");
         
         return allUnit;
         }
-async function getSessionsForOwnedUnits(adminId) {
-    // First, get the list of owned unit UUIDs
-    const allUnit = await getAllOwnedUnits(adminId);
 
-    if (allUnit.length === 0) {
-        console.log("No owned units found.");
-        return [];
-    }
-
-    // Second, fetch rack_sessions where device_uid is in the list of owned units
-    const { data: sessions, error } = await client
-        .from('rack_sessions')
-        .select('device_uid, slot, user_id') // Select only needed columns
-        .in('device_uid', allUnit); // Use the .in() filter
-
-    if (error) {
-        console.error("Error fetching rack sessions:", error.message);
-        return [];
-    }
-  
 const sidebar=document.getElementById("sidebar");
 const toggleBtn=document.getElementById("toggleBtn");
 const rackBtn=document.getElementById("rackBtn");
@@ -408,29 +389,9 @@ return `<table><thead><tr><th>UNIT</th><th>SLOT</th><th>USER</th><th>STATUS</th>
 <tr><td>A</td><td>2</td><td>---</td><td><span class='badge badge-idle'>IDLE</span></td></tr>
 </tbody></table>`;
 }
-  
-function rackTable(sessions) {
-    let tableHTML = `<table><thead><tr><th>UNIT</th><th>SLOT</th><th>USER</th><th>STATUS</th></tr></thead><tbody>`;
 
-    sessions.forEach(session => {
-        // Assuming you can determine the status (active/idle) from other logic or a 'status' column
-        // If there's a 'timeout' column as seen in the image, you might check if it's NULL for ACTIVE
-        const status = session.timeout === null ? 'active' : 'idle'; 
-        const statusText = status === 'active' ? 'ACTIVE' : 'IDLE';
 
-        tableHTML += `
-            <tr>
-                <td>${session.device_uid}</td>
-                <td>${session.slot}</td>
-                <td>${session.user_id}</td>
-                <td><span class='badge badge-${status}'>${statusText}</span></td>
-            </tr>
-        `;
-    });
-
-    tableHTML += `</tbody></table>`;
-    return tableHTML;
-}
+  ----------
 
 function logsTable(){
 return `<table><thead><tr><th>UNIT</th><th>SLOT</th><th>USER</th><th>USER_ID</th><th>DATE</th><th>TIME IN</th><th>TIME OUT</th><th>TOTAL</th></tr></thead><tbody>
