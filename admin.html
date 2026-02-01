@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>BikeRack Admin (UI Only)</title>
+  <title>Admin Dashboard - Smart BikeRack</title>
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
   <style>
     body{margin:0;font-family:Arial, Helvetica, sans-serif;background:#f3f4f6}
@@ -286,7 +286,6 @@ const params = new URLSearchParams(window.location.search);
 const adminId = params.get("id");
 
 const storedId = localStorage.getItem("admin_id");
-    
       if (!storedId || storedId !== adminId) {
           alert("You don't have access to this profile.");
           if (storedId) {
@@ -296,6 +295,21 @@ const storedId = localStorage.getItem("admin_id");
           }
           throw new Error("Unauthorized access blocked"); 
       }
+
+  async function getAllOwnedUnits(adminId) {
+        const { data, error } = await client
+            .from('units') 
+            .select('uuid')
+            .eq('admin_id', adminId);
+    
+        if (error) {
+            console.error("Error fetching owned units:", error.message);
+            return []; 
+        }
+        const allUnit = data.map(unit => unit.uuid);
+        
+        return allUnit;
+        }
 
 const sidebar=document.getElementById("sidebar");
 const toggleBtn=document.getElementById("toggleBtn");
