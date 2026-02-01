@@ -390,8 +390,12 @@ return `<table><thead><tr><th>UNIT</th><th>SLOT</th><th>USER</th><th>STATUS</th>
 </tbody></table>`;
 }
 
-
-  ----------
+function usersTable(){
+return `<table><thead><tr><th>REGISTERED AT</th><th>UNIT</th><th>NAME</th><th>CONTACT</th><th>ACTIONS</th></tr></thead><tbody>
+<tr><td>2026-01-29</td><td>A</td><td>JC</td><td>0992313532</td><td><button class='action-btn edit'>Edit</button><button class='action-btn delete'>Delete</button></td></tr>
+<tr><td>2026-01-30</td><td>A</td><td>Maria</td><td>0999999999</td><td><button class='action-btn edit'>Edit</button><button class='action-btn delete'>Delete</button></td></tr>
+</tbody></table>`;
+}
 
 function logsTable(){
 return `<table><thead><tr><th>UNIT</th><th>SLOT</th><th>USER</th><th>USER_ID</th><th>DATE</th><th>TIME IN</th><th>TIME OUT</th><th>TOTAL</th></tr></thead><tbody>
