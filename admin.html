@@ -332,6 +332,11 @@ const storedId = localStorage.getItem("admin_id");
 }
 
   async function handleRackDisplayClick(adminId) {
+    const { data: { user }, error: userError } = await client.auth.getUser();
+    if (userError || !user) {
+        console.error("User is not logged in or session expired:", userError?.message);
+        return; }
+    const adminId = user.id; 
     const sessions = await getSessionsForOwnedUnits(adminId);
     const tableHTMLString = rackTable(sessions);
     setActive(rackBtn, 'View Racks', tableHTMLString);
@@ -593,7 +598,7 @@ document.addEventListener('click',()=>{
   rackMenu.style.display='none';
   usersMenu.style.display='none';
 });
-rackBtn.onclick=()=>{handleRackDisplayClick('yourAdminIdHere');};
+rackBtn.onclick=()=>{handleRackDisplayClick();};
 usersBtn.onclick=()=>setActive(usersBtn,'Manage Users',usersTable());
 logsBtn.onclick=()=>setActive(logsBtn,'View Logs',logsTable());
   
