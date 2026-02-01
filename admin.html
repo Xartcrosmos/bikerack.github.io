@@ -331,6 +331,11 @@ const storedId = localStorage.getItem("admin_id");
     return sessions;
 }
 
+  async function handleRackDisplayClick(adminId) {
+    const sessions = await getSessionsForOwnedUnits(adminId);
+    const tableHTMLString = rackTable(sessions);
+    setActive(rackBtn, 'View Racks', tableHTMLString);
+}
 
 const sidebar=document.getElementById("sidebar");
 const toggleBtn=document.getElementById("toggleBtn");
@@ -408,8 +413,6 @@ function rackTable(sessions) {
     let tableHTML = `<table><thead><tr><th>UNIT</th><th>SLOT</th><th>USER</th><th>STATUS</th></tr></thead><tbody>`;
 
     sessions.forEach(session => {
-        // Assuming you can determine the status (active/idle) from other logic or a 'status' column
-        // If there's a 'timeout' column as seen in the image, you might check if it's NULL for ACTIVE
         const status = session.timeout === null ? 'active' : 'idle'; 
         const statusText = status === 'active' ? 'ACTIVE' : 'IDLE';
 
@@ -426,6 +429,7 @@ function rackTable(sessions) {
     tableHTML += `</tbody></table>`;
     return tableHTML;
 }
+
 
 function usersTable(){
 return `<table><thead><tr><th>REGISTERED AT</th><th>UNIT</th><th>NAME</th><th>CONTACT</th><th>ACTIONS</th></tr></thead><tbody>
@@ -589,7 +593,7 @@ document.addEventListener('click',()=>{
   rackMenu.style.display='none';
   usersMenu.style.display='none';
 });
-rackBtn.onclick=()=>setActive(rackBtn,'View Racks',rackTable());
+rackBtn.onclick=()=>{handleRackDisplayClick('yourAdminIdHere');};
 usersBtn.onclick=()=>setActive(usersBtn,'Manage Users',usersTable());
 logsBtn.onclick=()=>setActive(logsBtn,'View Logs',logsTable());
   
