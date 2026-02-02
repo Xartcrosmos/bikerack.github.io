@@ -72,8 +72,7 @@
         const name = nameInput.value.trim();
         const contact = contactInput.value.trim();
         if (!name || !contact) return;
-        cInput.disabled = true;
-        nInput.disabled = true;
+        nInput.readOnly = true;
         submitBtn.disabled = true;
         statusMsg.className = "msg muted";
         statusMsg.textContent = "Processing...";
