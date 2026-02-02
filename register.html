@@ -69,10 +69,11 @@
       startHeartbeat();
 
       submitBtn.onclick = async () => {
-        const name = nameInput.value.trim();
-        const contact = contactInput.value.trim();
+        const name = nInput.value.trim();
+        const contact = cInput.value.trim();
         if (!name || !contact) return;
         nInput.readOnly = true;
+        cInput.readOnly = true; 
         submitBtn.disabled = true;
         statusMsg.className = "msg muted";
         statusMsg.textContent = "Processing...";
