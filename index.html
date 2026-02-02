@@ -180,14 +180,21 @@ loginUserBtn.onclick = async () => {
   loginUserBtn.disabled = true;
   registerBtn.disabled = true;
   const { data: deviceData, error: deviceError } = await client.from("device_unit").select("admin_id").eq("uuid", currentDevice).single();
+  if (deviceError || !deviceData) {
+    loginUserBtn.disabled = false;
+    registerBtn.disabled = false;
+    return showError(deviceError?.message || "Device configuration not found.");
+  }
   messageEl.textContent = "Please scan fingerprint to login...";
   const { data, error } = await client.from("rack_sessions").insert([{ device_uuid: currentDevice, slot: currentSlot, status: 0, admin_id: deviceData.admin_id }]).select().single();
-  if(error) {
-  loginUserBtn.disabled = false;
-  registerBtn.disabled = false;
-  return showError(error.message);}
+  if (error) {
+    loginUserBtn.disabled = false;
+    registerBtn.disabled = false;
+    return showError(error.message);
+  }
   pollLogin(data.id);
 };
+
 
 async function pollLogin(id){
   const { data } = await client.from("rack_sessions").select("status, user_id").eq("id", id).single();
