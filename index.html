@@ -228,7 +228,8 @@ async function pollLogin(id){
         return;
     }
     await client.from("sessions").update({ user_id: userId }).eq("session_id", sessionId);
-    const { error: timeInError } = await client.from("rack_sessions").update({ timein: new Date().toISOString() }) 
+    const { error: timeInError } = await client.from("rack_sessions").update({ timein: new Date().toISOString() }).eq("id", id); 
+    if (timeInError) {console.error("Time-in update failed:", timeInError.message);}
     localStorage.setItem("session_data", JSON.stringify({ currentDevice, currentSlot, userId, dbRowId: id }));
     window.location.href = `login.html?device=${currentDevice}&slot=${currentSlot}&id=${userId}`;
     return;
