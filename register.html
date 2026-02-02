@@ -37,6 +37,8 @@
     const formBox = document.getElementById("formBox");
     const statusMsg = document.getElementById("statusMsg");
     const submitBtn = document.getElementById("submitBtn");
+    const cInput = document.getElementById("contactInput");
+    const nInput = document.getElementById("nameInput");
 
     let pollTimer = null, heartbeat = null, sessionId = null, currentDevice = null, currentSlot = null;
 
@@ -70,8 +72,8 @@
         const name = nameInput.value.trim();
         const contact = contactInput.value.trim();
         if (!name || !contact) return;
-        name.disabled = true;
-        contact.disabled = true;
+        cInput.disabled = true;
+        nInput.disabled = true;
         submitBtn.disabled = true;
         statusMsg.className = "msg muted";
         statusMsg.textContent = "Processing...";
