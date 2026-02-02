@@ -179,8 +179,9 @@ loginBtn.onclick=async()=>{
 loginUserBtn.onclick = async () => {
   loginUserBtn.disabled = true;
   registerBtn.disabled = true;
+  const { data: deviceData, error: deviceError } = await client.from("device_unit").select("admin_id").eq("uuid", currentDevice).single();
   messageEl.textContent = "Please scan fingerprint to login...";
-  const { data, error } = await client.from("rack_sessions").insert([{ device_uuid: currentDevice, slot: currentSlot, status: 0 }]).select().single();
+  const { data, error } = await client.from("rack_sessions").insert([{ device_uuid: currentDevice, slot: currentSlot, status: 0, admin_id: deviceData.admin_id }]).select().single();
   if(error) {
   loginUserBtn.disabled = false;
   registerBtn.disabled = false;
