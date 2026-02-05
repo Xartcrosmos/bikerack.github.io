@@ -1,0 +1,252 @@
+body { 
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+    margin: 0; 
+    background: #f2f3f3; 
+    /* Remove display: grid - it is fighting the fixed sidebar */
+    min-height: 100vh;
+}
+
+.sidebar {
+    background: #fff;
+    padding: 20px;
+    height: 100vh;
+    box-shadow: 2px 0 5px rgba(0,0,0,0.05);
+    position: fixed; 
+    top: 0;
+    left: 0;
+    width: 250px; 
+    box-sizing: border-box;
+    z-index: 100;
+}
+
+.main-content {
+    padding: 20px;
+    /* This creates the space for the fixed sidebar */
+    margin-left: 250px; 
+    /* Use 'min-width: 0' to prevent flex-children from squashing */
+    min-width: 0;
+}
+
+.content-section { 
+    background: #fff;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+    margin-bottom: 20px;
+    
+    /* This ensures the white board fills the space but stays contained */
+    width: 100%;
+    box-sizing: border-box;
+    overflow-x: auto; 
+}
+
+table { 
+    width: 100%; 
+    border-collapse: collapse; 
+    /* This prevents the columns from getting too thin */
+    min-width: 700px; 
+}
+
+
+h1, h2 { color: #333; }
+
+tbody tr {
+    cursor: pointer;
+    transition: background 0.2s;
+}
+tbody tr:active {
+    background-color: #f0f7ff; /* Brief highlight when tapped on phone */
+}
+
+
+tbody tr:hover {
+    background-color: #f1f1f1; /* A very light gray background */
+    cursor: pointer;           /* Changes cursor to a hand icon */
+    transition: background-color 0.3s ease; /* Smooth color change */
+}
+
+td button {
+    background: #f0f0f0;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: 0.2s;
+}
+td button:first-child:hover { border-color: #0b6edc; color: #0b6edc; }
+td button:last-child:hover { border-color: #dc3545; color: #dc3545; }
+
+td { white-space: nowrap; } 
+
+.logo { 
+    font-size: 1.5rem; 
+    font-weight: bold; 
+    margin-bottom: 30px; 
+    color: #0b6edc; 
+}
+
+nav { 
+    display: flex;
+    flex-direction: column; /* Stacks buttons vertically */
+    gap: 5px;
+}
+
+nav button { 
+    padding: 12px 15px; 
+    cursor: pointer; 
+    border: none;
+    background: transparent;
+    text-align: left;
+    border-radius: 5px;
+    font-size: 1rem;
+    transition: 0.3s;
+    color: #555;
+}
+
+nav button:hover, .active-nav-button { 
+    background: #e0f2fe; /* Light blue background on hover/active */
+    color: #0b6edc; /* Blue text color */
+}
+
+th, td { padding: 12px; border: none; border-bottom: 1px solid #eee; text-align: left; }
+th { background-color: transparent; color: #777; font-weight: normal; }
+
+/* --- Status Colors --- */
+.status-active { color: #28a745; font-weight: bold; } /* Changed to green for "Active" */
+.status-inactive { color: #dc3545; } /* Changed to red for "Inactive" */
+
+/* --- Mobile Responsiveness --- */
+/* Hide mobile button by default on desktop */
+.mobile-toggle {
+    display: none;
+    background: #0b6edc;
+    color: white;
+    border: none;
+    padding: 10px 15px;
+    border-radius: 5px;
+    margin-bottom: 20px;
+    cursor: pointer;
+}
+
+/* --- Mobile Responsiveness --- */
+/* --- Mobile Responsiveness --- */
+@media screen and (max-width: 768px) {
+    /* 1. Ensure the toggle button is always on top of the sidebar */
+    .mobile-toggle { 
+        display: block !important; 
+        position: fixed; /* Keep it in the same spot on the screen */
+        top: 10px;
+        left: 10px;
+        z-index: 1001; /* Must be a higher number than the sidebar */
+    }
+
+    /* 2. Position the sidebar off-screen, behind the button area */
+    .sidebar {
+        left: -250px; 
+        transition: left 0.3s ease;
+        z-index: 1000;
+        width: 250px;
+        position: fixed;
+        
+        /* ADD THIS LINE: Moves all content down inside the sidebar */
+        padding-top: 60px; 
+    }
+
+    /* 3. When the sidebar is 'active', it moves to left: 0 */
+    .sidebar.active {
+        left: 0;
+    }
+
+    /* 4. Add padding to the content area so text doesn't overlap the button */
+    .main-content {
+        margin-left: 0 !important; 
+        width: 100% !important;
+        padding-top: 60px; /* Pushes H1 down so button doesn't cover it */
+    }
+}
+
+
+/* Styling for the container holding all the dynamic data */
+#dynamic-info {
+    display: flex;
+    flex-direction: column; /* Stacks items vertically */
+    gap: 10px; /* Space between each line item */
+}
+
+/* Styling for each individual 'Unit: A' line item */
+#dynamic-info div {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid #eee;
+    font-size: 0.9rem;
+}
+
+#dynamic-info div:last-child {
+    border-bottom: none; /* Removes the line under the last item (Status: IDLE) */
+}
+
+
+.modal-overlay {
+    position: fixed; 
+    top: 0; 
+    left: 0; 
+    width: 100%; 
+    height: 100%;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex; 
+    align-items: center; 
+    justify-content: center;
+    z-index: 2000;
+    padding: 50px;
+    box-sizing: border-box; 
+}
+
+.modal-content {
+    background: white; 
+    padding: 30px; /* This padding should be inside the 90% width */
+    border-radius: 8px; 
+    width: 90%; 
+    max-width: 400px;
+    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.15); 
+    text-align: left; /* Ensures all text starts from the left edge */
+    box-sizing: border-box; /* CRUCIAL: Ensures padding doesn't increase total width */
+}
+
+
+.modal-content h3, .modal-content p, .modal-content label {
+    text-align: left;
+}
+
+.modal-content h3 { margin-bottom: 15px; }
+.modal-content p { margin-bottom: 15px; color: #555; }
+
+.modal-content input { 
+    width: 100%; 
+    padding: 10px; 
+    margin: 8px 0; 
+    box-sizing: border-box; 
+    border: 1px solid #ddd; 
+    border-radius: 4px;
+}
+
+.modal-content label {
+    display: block; 
+    font-weight: bold;
+    margin-top: 15px;
+    color: #333;
+}
+
+.modal-content button {
+    padding: 10px 15px;
+    margin-top: 10px;
+    margin-left: 10px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    float: right;
+    font-weight: bold;
+}
+
