@@ -1,22 +1,23 @@
-const urlParams = new URLSearchParams(window.location.search);
 const SUPABASE_URL = "https://lguyiavotyrxdlyhsvmz.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxndXlpYXZvdHlyeGRseWhzdm16Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkxNzQ0MjQsImV4cCI6MjA4NDc1MDQyNH0.f1hT0B68mv2lxVsQldk3ABx_0yBBUK2t1fcRHWGhmyM";
 const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const TOTAL_SLOTS_PER_UNIT = 2;
+
+const urlParams = new URLSearchParams(window.location.search);
+const urlId = urlParams.get('id');
 
 let allUnits = [];
 let adminId = null;
 let unitMap = {};
 
 const storedAdminId = localStorage.getItem("admin_id");
-      if  (!storedAdminId || storedAdminId != data.id) {
-          alert("You don't have access to this profile.");
-          if (storedData && storedData.currentDevice) {
-            window.location.href = `admin.html?id=${storedData.storeAdminId}`;
-          } else {
-            window.location.href = "index.html";
-          }
-          throw new Error("Unauthorized access blocked"); 
+      if (!storedAdminId) {
+          alert("No session found. Please log in.");
+          window.location.href = "../index.html";
+      } 
+      else if (urlId !== storedAdminId) {
+          alert("URL mismatch. Redirecting to authorized ID.");
+          window.location.href = `admin.html?id=${storedAdminId}`;
       }
 
 function toggleSidebar() {
@@ -346,6 +347,7 @@ loadSessionLogs();
 }
 }
 window.onload = init;
+
 
 
 
