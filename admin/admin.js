@@ -12,7 +12,7 @@ const storedAdminId = localStorage.getItem("admin_id");
       if  (!storedAdminId || storedAdminId != data.id) {
           alert("You don't have access to this profile.");
           if (storedData && storedData.currentDevice) {
-            window.location.href = `admin.html?id=${storedData.currentDevice}&slot=${storedData.currentSlot}&id=${storedData.userId}`;
+            window.location.href = `admin.html?id=${storedData.storeAdminId}`;
           } else {
             window.location.href = "index.html";
           }
@@ -346,5 +346,6 @@ loadSessionLogs();
 }
 }
 window.onload = init;
+
 
 
