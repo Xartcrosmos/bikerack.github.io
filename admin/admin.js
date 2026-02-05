@@ -1,10 +1,4 @@
-const DEFAULT_ID = "5b4df813-fe4c-4950-a4ed-c0b01d4b203f";
 const urlParams = new URLSearchParams(window.location.search);
-
-if (!urlParams.has('id')) {
-window.location.search = `?id=${DEFAULT_ID}`;
-}
-
 const SUPABASE_URL = "https://lguyiavotyrxdlyhsvmz.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxndXlpYXZvdHlyeGRseWhzdm16Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkxNzQ0MjQsImV4cCI6MjA4NDc1MDQyNH0.f1hT0B68mv2lxVsQldk3ABx_0yBBUK2t1fcRHWGhmyM";
 const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -341,3 +335,4 @@ loadSessionLogs();
 }
 }
 window.onload = init;
+
