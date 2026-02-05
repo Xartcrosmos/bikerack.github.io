@@ -8,6 +8,17 @@ let allUnits = [];
 let adminId = null;
 let unitMap = {};
 
+const storedAdminId = localStorage.getItem("admin_id");
+      if  (!storedAdminId || storedAdminId != data.id) {
+          alert("You don't have access to this profile.");
+          if (storedData && storedData.currentDevice) {
+            window.location.href = `admin.html?id=${storedData.currentDevice}&slot=${storedData.currentSlot}&id=${storedData.userId}`;
+          } else {
+            window.location.href = "index.html";
+          }
+          throw new Error("Unauthorized access blocked"); 
+      }
+
 function toggleSidebar() {
     const sidebar = document.querySelector('.sidebar');
     sidebar.classList.toggle('active');
@@ -335,4 +346,5 @@ loadSessionLogs();
 }
 }
 window.onload = init;
+
 
