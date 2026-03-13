@@ -5,39 +5,105 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>BikeRack Slot Access</title>
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
-  <style>
-    body{font-family:Arial;text-align:center;margin-top:100px}
-    button{padding:12px 25px;margin:8px;font-size:16px;cursor:pointer}
-    .hidden{display:none}
-    .error{color:red}
-    .muted{color:#777;font-size:14px}
-    .link{color:#2563eb;cursor:pointer;text-decoration:underline;font-size:14px}
-    .modal{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;justify-content:center;align-items:center;z-index:100}
-    .modal.hidden{display:none}
-    .modal-box{background:white;padding:20px;border-radius:10px;width:300px}
-    .modal-box input{width:90%;padding:8px;margin:6px 0}
-    .modal-msg{min-height:18px;margin-bottom:8px;font-size:13px}
-  </style>
+  <link rel="stylesheet" href="index.css">
 </head>
 <body>
-
-<h2 id="message">Welcome to Smart BikeRack</h2>
-<div id="info" class="muted"></div>
-
+<h4 id="message"></h4>
 <!-- VISITOR ACTIONS (Visible if no device/slot in URL) -->
-<div id="visitorActions">
-  <button id="visitorLoginBtn">Admin Login</button>
-  <div class="muted">
-    You don't have an account?
-    <span id="claimLink" class="link">Claim your BikeRack unit now.</span>
+  <div id="visitorActions" class="hidden">
+  <div class="visitor-layout">
+    <div class="top-header">
+      <div class="logo-wrapper">
+        <img src="logo.png" alt="Logo" class="header-logo">
+      </div>
+      <h2>BikeRack Access Manager</h2>
+    </div>
+
+    <div class="main-body">
+      <div id="info" class="muted"></div>
+        <div class="admin-section">
+          <h1 class="welcome-title">Welcome to Bikerack</h1>
+          
+          <p class="description-gray">
+            Secure, fingerprint-based access for public bike racks, with clear tools for administrators.
+          </p>
+
+          <p class="description-admin">
+            Scan the QR code posted at a bike rack to open a rack-specific page where riders can log in with their fingerprint or register in under a minute. This welcome page is dedicated to administrators who oversee racks, users, and activity logs.
+          </p>
+
+          <button id="visitorLoginBtn" class="admin-btn">Admin Login</button>
+
+          <div class="muted-footer">
+            You don't have an account?
+            <span id="claimLink" class="link">Claim your BikeRack unit now.</span>
+          </div>
+        </div>
+
+
+      <div class="span-container">
+        <!-- Card 1 -->
+        <div class="styled-card">
+          <h3>For riders at the rack</h3>
+          <p class="description">To unlock or manage a rack, stand at the rack and scan the QR sticker on the hardware. The QR code opens a rack-specific page where you can:</p>
+          <ul>
+            <li>Log in using your fingerprint on the connected reader</li>
+            <li>Register a new account with your name and contact number</li>
+            <li>Use the same fingerprint at any supported rack in the network</li>
+          </ul>
+          <p class="warning">Riders do not log in on this welcome page. Always start at the rack's QR code.</p>
+        </div>
+
+        <!-- Card 2-->
+        <div class="styled-card">
+          <h3>For administrators</h3>
+          <p class="description">Use your admin credentials to access a dedicated dashboard where you can manage racks, users, and activity logs.</p>
+          <ul>
+              <li>Monitor rack status: available, occupied, or offline</li>
+              <li>Review and manage registered riders and their contact details</li>
+              <li>Track login and logout events at every rack in real time</li>
+            </ul>
+            <p class="description">SelectAdmin Loginabove to open a secure sign-in form. Only approved admins should proceed.</p>
+        </div>
+      </div>
+
+      <span class="filled-span">
+        <div>
+          <h3>Reached here from a rack link?</h3>
+          <p class="rack-desc">If you tried to access a rack page directly without using a QR code, you may have been redirected here. Rack access is only available through QR links that include a device ID, so please return to the rack and scan the posted code.</p>
+        </div>
+      </span>
+
+    </div>
+
+    <div class="right-header">
+
+      <h3>Admin Overview</h3>
+      <p class="muted">Get a quick sense of how the system is being used across all racks before you sign in.</p>
+      
+      <!-- The White Card Section -->
+      <div class="transparency-card"> 
+        <h3>Fingerprint and Log transparency</h3>
+        <p class="description">Every fingerprint login and logout at any rack is recorded with a timestamp and rack identifier. This helps protect parked bikes and allows administrators to respond quickly to incidents while keeping biometric data encrypted and access-controlled.</p>
+      </div>
+    </div>
+
   </div>
 </div>
 
-<!-- SLOT ACTIONS (Visible if device/slot in URL) -->
-<div id="slotActions" class="hidden">
-  <button id="registerBtn">Register</button>
-  <button id="loginUserBtn">Login</button>
-</div>
+  <!-- SLOT ACTIONS (Visible if device/slot in URL) -->
+
+  <div id="slotActions" class="hidden">
+    <div class="slot-header">
+    <div class="logo-wrapper">
+      <img src="logo.png" alt="Logo" class="header-logo">
+    </div>
+    <span class="slot-label">LockRack</span>
+    <div id="info" class="muted"></div>
+    </div>
+    <button id="loginUserBtn">Login</button>
+    <button id="registerBtn">Register</button>
+  </div>
 
 <!-- MODALS -->
 <div id="claimModal" class="modal hidden"><div class="modal-box"><h3>Claim Device</h3><div class="modal-msg muted"></div><input id="uuidInput" placeholder="Device UUID"/><input id="otcInput" placeholder="OTC Code"/><button id="claimBtn">Next</button><button id="cancelClaim">Cancel</button></div></div>
@@ -45,209 +111,6 @@
 <div id="otpModal" class="modal hidden"><div class="modal-box"><h3>Email Verification</h3><div class="modal-msg muted"></div><input id="otpInput" placeholder="Enter OTP"/><button id="otpVerifyBtn">Verify</button></div></div>
 <div id="loginModal" class="modal hidden"><div class="modal-box"><h3>Admin Login</h3><div class="modal-msg muted"></div><input id="loginEmail" placeholder="Email"/><input id="loginPass" type="password" placeholder="Password"/><button id="loginBtn">Login</button><button id="cancelLogin">Cancel</button></div></div>
 
-<script>
-/* ========= CONFIG ========= */
-const SUPABASE_URL = "https://lguyiavotyrxdlyhsvmz.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxndXlpYXZvdHlyeGRseWhzdm16Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkxNzQ0MjQsImV4cCI6MjA4NDc1MDQyNH0.f1hT0B68mv2lxVsQldk3ABx_0yBBUK2t1fcRHWGhmyM";
-const client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-/* ========= ELEMENTS ========= */
-const messageEl = document.getElementById("message");
-const infoEl = document.getElementById("info");
-const visitorActions = document.getElementById("visitorActions");
-const slotActions = document.getElementById("slotActions");
-let heartbeat = null, loginPollTimer = null, sessionId = null, sessionKey = null, currentDevice = null, currentSlot = null;
-
-const now = () => Math.floor(Date.now()/1000);
-const showError = (m)=>{messageEl.textContent=m;messageEl.className="error";};
-const stopHeartbeat = ()=>{ if(heartbeat) clearInterval(heartbeat); };
-
-/* ========= MODAL HELPERS ========= */
-function openModal(id){document.getElementById(id).classList.remove("hidden");}
-function closeModal(id){document.getElementById(id).classList.add("hidden");}
-function showMsg(text,isErr){
-  const el=document.querySelector('.modal:not(.hidden) .modal-msg');
-  if(el){ el.textContent=text; el.className='modal-msg '+(isErr?'error':'muted'); }
-}
-
-/* ========= SLOT LOGIC (HEARTBEAT) ========= */
-const runHeartbeat = async () => {
-  if(!sessionId) return;
-  await client.from("sessions").update({ last_seen: now() }).eq("session_id", sessionId);
-};
-
-const startHeartbeat = () => { stopHeartbeat(); runHeartbeat(); heartbeat = setInterval(runHeartbeat, 15000); };
-
-/* ========= MAIN INIT ========= */
-window.addEventListener("load", async ()=>{
-  const params = new URLSearchParams(location.search);
-  currentDevice = params.get("device");
-  currentSlot = parseInt(params.get("slot"), 10);
-
-  if(!currentDevice || Number.isNaN(currentSlot)){
-    messageEl.textContent = "Welcome! Please scan a QR code to use a slot.";
-    visitorActions.classList.remove("hidden");
-    return;
-  }
-
-  visitorActions.classList.add("hidden");
-  infoEl.textContent = `Device: ${currentDevice} | Slot: ${currentSlot}`;
-
-  // CLEANUP PENDING ROWS (Status 0) for this slot
-  await client
-    .from("rack_sessions")
-    .delete()
-    .eq("device_uuid", currentDevice)
-    .eq("slot", currentSlot)
-    .eq("status", 0);
-  
-  // --- NEW: CLAIMED VALIDATION ---
-  const { data: unit } = await client.from("device_unit").select("status").eq("uuid", currentDevice).maybeSingle();
-  if (!unit || unit.status !== "claimed") return showError("This device is not activated. Please contact admin.");
-  // -------------------------------
-
-  const { data: rack } = await client.from("rack_sessions").select("status").eq("device_uuid", currentDevice).eq("slot", currentSlot).eq("status", 1).maybeSingle();
-  if (rack) return showError("Slot is physically occupied.");
-
-  sessionKey = `session_${currentDevice}_${currentSlot}`;
-  sessionId = localStorage.getItem(sessionKey) || crypto.randomUUID();
-
-  const { data: active } = await client.from("sessions").select("session_id").eq("device_uuid", currentDevice).eq("slot", currentSlot).gt("last_seen", now() - 60).maybeSingle();
-  if (active && active.session_id !== sessionId) return showError("Slot is in use by another user.");
-
-  const { error: upsertErr } = await client.from("sessions").upsert([{ device_uuid: currentDevice, slot: currentSlot, session_id: sessionId, last_seen: now() }], { onConflict: 'device_uuid, slot' });
-  if (upsertErr) return showError("Could not start session.");
-
-  localStorage.setItem(sessionKey, sessionId);
-  slotActions.classList.remove("hidden");
-  messageEl.textContent = `Rack Ready - Slot ${currentSlot}`;
-  startHeartbeat();
-});
-
-
-/* ========= VISITOR / ADMIN ACTIONS ========= */
-visitorLoginBtn.onclick=()=>openModal("loginModal");
-claimLink.onclick=()=>openModal("claimModal");
-cancelClaim.onclick=()=>closeModal("claimModal");
-cancelCreate.onclick=()=>closeModal("createModal");
-cancelLogin.onclick=()=>closeModal("loginModal");
-
-claimBtn.onclick=async()=>{
-  const uuid=uuidInput.value.trim(), otc=otcInput.value.trim();
-  if(!uuid||!otc) return showMsg("Enter UUID and OTC",true);
-  const {data}=await client.from("device_unit").select("*").eq("uuid",uuid).eq("otc",otc).maybeSingle();
-  if(!data) return showMsg("Invalid device",true);
-  if(data.status==="claimed") return showMsg("Already claimed",true);
-  window._claimUUID=uuid; closeModal("claimModal"); openModal("createModal");
-};
-
-createBtn.onclick=async()=>{
-  const email=emailInput.value.trim(), pass=passInput.value.trim();
-  if(!email||!pass) return showMsg("Enter email and password",true);
-  const {data:existing}=await client.from("admins").select("*").eq("email",email).maybeSingle();
-  if(existing){
-    if(existing.password_hash!==pass) return showMsg("Email already linked. Use SAME password.",true);
-    await linkDevice(existing.id,email,pass); return;
-  }
-  const {error}=await client.auth.signInWithOtp({ email, options:{shouldCreateUser:true} });
-  if(error) return showMsg("Failed sending OTP",true);
-  window._pendingCreate={email,pass}; closeModal("createModal"); openModal("otpModal");
-};
-
-otpVerifyBtn.onclick=async()=>{
-  const code=otpInput.value.trim();
-  const {email,pass}=window._pendingCreate||{};
-  const {error}=await client.auth.verifyOtp({ email, token:code, type:'email' });
-  if(error) return showMsg("Invalid OTP",true);
-  const {data:newAdmin}=await client.from("admins").insert([{email,password_hash:pass}]).select().single();
-  await linkDevice(newAdmin.id,email,pass); closeModal("otpModal");
-};
-
-async function linkDevice(adminId,email,pass){
-  await client.from("device_unit").update({status:"claimed",admin_id:adminId}).eq("uuid",window._claimUUID);
-  openModal("loginModal"); loginEmail.value=email; loginPass.value=pass;
-}
-
-loginBtn.onclick=async()=>{
-  const email=loginEmail.value.trim(), pass=loginPass.value.trim();
-  const {data}=await client.from("admins").select("*").eq("email",email).eq("password_hash",pass).maybeSingle();
-  if(!data) return showMsg("Invalid login",true);
-  localStorage.setItem("admin_id",data.id); location.href = `admin/admin.html?id=${data.id}`;
-};
-
-/* ========= FINGERPRINT LOGIN (SLOT) ========= */
-loginUserBtn.onclick = async () => {
-  loginUserBtn.disabled = true;
-  registerBtn.disabled = true;
-  const { data: deviceData, error: deviceError } = await client.from("device_unit").select("admin_id").eq("uuid", currentDevice).single();
-  if (deviceError || !deviceData) {
-    loginUserBtn.disabled = false;
-    registerBtn.disabled = false;
-    return showError(deviceError?.message || "Device configuration not found.");
-  }
-  messageEl.textContent = "Please scan fingerprint to login...";
-  const { data, error } = await client.from("rack_sessions").insert([{ device_uuid: currentDevice, slot: currentSlot, status: 0, admin_id: deviceData.admin_id }]).select().single();
-  if (error) {
-    loginUserBtn.disabled = false;
-    registerBtn.disabled = false;
-    return showError(error.message);
-  }
-  pollLogin(data.id);
-};
-
-
-async function pollLogin(id){
-  const { data } = await client.from("rack_sessions").select("status, user_id").eq("id", id).single();
-  if(!data) return;
-  if(data.status === 0) loginPollTimer = setTimeout(() => pollLogin(id), 2000);
-  if(data.status === 1) {
-    clearTimeout(loginPollTimer);
-    const userId = data.user_id;
-    // 1. Get the Admin ID linked to this User ID
-    const { data: userReg } = await client .from("registration") .select("admin_id") .eq("id", userId) .maybeSingle();
-      if (!userReg || !userReg.admin_id) {
-        alert("No valid user registration found. Please register.");
-        await client.from("rack_sessions").update({ status: 0 }).eq("id", id);
-        pollLogin(id);
-        return; 
-      }
-    // 2. Check if the CURRENT DEVICE UUID belongs to that Admin
-    const { data: ownedUnit } = await client .from("device_unit") .select("uuid") .eq("admin_id", userReg.admin_id) .eq("uuid", currentDevice) .maybeSingle();
-      if (!ownedUnit) {
-        alert("You're not registered to this unit yet. Please register.");
-         await client.from("rack_sessions").update({ status: 0 }).eq("id", id);
-        pollLogin(id);
-        return;
-      }
-    // --- END SECURITY CHECK ---
-    const { error: updateError } = await client.from("rack_sessions") .update({ user_id: userId }) .eq("id", id);
-
-    if (updateError) {
-        console.error("Update failed:", updateError.message);
-        alert("Database sync failed. Please try again.");
-        return;
-    }
-    await client.from("sessions").update({ user_id: userId }).eq("session_id", sessionId);
-    const { error: timeInError } = await client.from("rack_sessions").update({ timein: new Date().toISOString() }).eq("id", id); 
-    if (timeInError) {console.error("Time-in update failed:", timeInError.message);}
-    localStorage.setItem("session_data", JSON.stringify({ currentDevice, currentSlot, userId, dbRowId: id }));
-    window.location.href = `login.html?device=${currentDevice}&slot=${currentSlot}&id=${userId}`;
-    return;
-  } else if(data.status === 2){ 
-    alert("Fingerprint not recognized."); 
-    await client.from("rack_sessions").update({ status: 0 }).eq("id", id); 
-    pollLogin(id); 
-  }
-}
-/* ========= REGISTER BUTTON HANDLER (SLOT MODE) ========= */
-registerBtn.onclick = () => {
-  window.location.href = `register.html?device=${currentDevice}&slot=${currentSlot}`;
-};
-
-document.addEventListener("visibilitychange", () => {
-  if (document.hidden) stopHeartbeat();
-  else if (sessionId && !slotActions.classList.contains("hidden")) startHeartbeat();
-});
-</script>
 </body>
+<script src="index.js" defer></script>
 </html>
