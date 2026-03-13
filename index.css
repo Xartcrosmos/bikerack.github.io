@@ -1,0 +1,376 @@
+body {
+  margin: 0; 
+  font-family: Arial; 
+  height: 100vh; 
+  overflow: hidden; /* This is the key fix */
+  text-align: center; 
+}
+.hidden { display: none !important; }
+
+/* Hide both by default to prevent the reload "glimpse" */
+#visitorActions, #slotActions {
+  display: none;
+}
+
+/* JavaScript will remove the .hidden class to show the correct one */
+#visitorActions:not(.hidden) {
+  display: grid !important; /* Forces your layout */
+}
+
+#slotActions:not(.hidden) {
+  display: block !important; /* Standard centered view */
+}
+
+/* Layout and Box */
+.span-container { display: flex; justify-content: center; gap: 50px; margin-top: 60px; }
+.styled-card { width: 250px; padding: 20px; border: 2px solid #ccc; border-radius: 12px; text-align: left; }
+
+/* Text Styles */
+.styled-card h3 { color: #000000; margin: 0; }
+.description { color: #252525; font-size: 14px; }
+.styled-card ul { font-size: 12px; color: #252525; }
+.warning { color: #f59f0a; font-size: 14px; font-weight: bold; }
+
+.filled-span {
+  display: flex; 
+  flex-direction: column; /* Stacks H3 and P vertically */
+  text-align: left;
+  background-color: #71b0f4; 
+  color: #000000;            
+  padding: 20px;          /* Increased padding for better look */
+  border-radius: 8px;
+  font-weight: bold;
+  margin-top: 20px;   
+  width: 600px;
+}
+
+/* Specific styling for the internal text */
+.filled-span h3 {
+  margin: 0 0 10px 0;
+  color: #000000; /* Keeps title black */
+}
+
+/* --- SLOT ACTIONS STYLING --- */
+/* Container for the Logo and Text */
+.slot-header {
+  display: flex;
+  align-items: center; /* Vertically centers the text with the logo */
+  justify-content: center; /* Keeps the whole group centered */
+  gap: 15px; /* Space between logo and text */
+  margin-bottom: 40px; /* Space between header and buttons */
+  width: 100%;
+}
+
+.muted {
+  font-size: 14px;
+  color: #000000;
+}
+
+/* Style for the text next to the logo */
+.slot-label {
+  font-size: 22px;
+  font-weight: bold;
+  color: #000;
+}
+
+/* Ensure the logo wrapper doesn't have extra margins that break centering */
+#slotActions .logo-wrapper {
+  margin-left: 0; 
+}
+/* Centers the buttons on the screen when visible */
+#slotActions:not(.hidden) {
+  display: flex !important;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  height: auto; /* Centers them vertically in the viewport */
+  padding-top: 60px; 
+  gap: 15px;
+}
+
+/* Base button style to match your Admin theme */
+#slotActions button {
+  width: 90%; 
+  max-width: 300px; /* Limits size on big screens */
+  padding: 16px;
+  font-size: 18px;
+  font-weight: bold;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin: 0;
+}
+
+/* Register Button - Secondary Outline Look */
+#registerBtn {
+  background-color: transparent;
+  color: #006adb;
+  border: 2px solid #006adb;
+}
+
+#registerBtn:hover {
+  background-color: #f0f7ff;
+}
+
+/* Login Button - Primary Solid Look */
+#loginUserBtn {
+  background-color: #006adb;
+  color: #ffffff;
+  border: none;
+  box-shadow: 0 4px 6px rgba(0, 106, 219, 0.2);
+}
+
+#loginUserBtn:hover {
+  background-color: #0056b3;
+  transform: translateY(-1px);
+}
+
+#loginUserBtn:active {
+  transform: translateY(0);
+}
+
+/* --- DISABLED BUTTON STYLES --- */
+
+/* Target buttons when the [disabled] attribute is present */
+#slotActions button:disabled {
+  background-color: #cccccc !important; /* Flat gray */
+  color: #888888 !important;            /* Muted text */
+  border: 2px solid #bbbbbb !important; /* Subtle gray border */
+  cursor: not-allowed;                  /* Shows 'block' icon on desktop */
+  box-shadow: none !important;           /* Remove any glow/shadows */
+  transform: none !important;            /* Stop it from moving if clicked */
+  pointer-events: none;                 /* Completely ignores clicks/hovers */
+}
+
+/* Optional: Make the logo/header look slightly faded when buttons are disabled */
+#slotActions:has(button:disabled) .slot-header {
+  opacity: 0.6;
+  transition: opacity 0.3s ease;
+}
+
+.rack-desc {
+  color: #65758b; /* Grayish color (light gray on blue background) */
+  font-size: 14px;
+  font-weight: normal; /* Normal font size */
+  margin: 0;
+}
+
+/* Container: Fixed on the left */
+.admin-section {
+  text-align: left;
+}
+
+
+/* Biggest font size */
+.welcome-title {
+  font-size: 32px; /* Smaller font size */
+  margin: 10px 0 8px 0;
+  color: #000;
+}
+
+/* Grayish description */
+.description-gray {
+  color: #666;
+  font-size: 16px; /* Smaller font size */
+  margin-bottom: 15px;
+  max-width: 600px; /* Reduced max width */
+}
+
+.description-admin {
+  color: #000;
+  font-size: 14px; /* Smaller font size */
+  margin-bottom: 20px;
+  max-width: 650px; /* Reduced max width */
+}
+
+.admin-btn {
+  background-color: #006adb;
+  color: #fff;
+  border: none;
+  padding: 10px 20px; /* Smaller padding */
+  font-size: 14px; /* Smaller font size */
+  font-weight: bold;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+/* Spacing for the bottom link */
+
+
+/* --- VISITOR MODE LAYOUT (20/80 Height | 70/30 Width) --- */
+.visitor-layout {
+  display: grid;
+  height: 100vh;
+  grid-template-rows: 5vh 1fr;
+  grid-template-columns: 70% 1fr;
+  grid-template-areas: 
+    "top top"
+    "main right";
+}
+
+.top-header {
+  grid-area: top;
+  background-color:#ffffff;
+  display: flex;
+  align-items: center;      /* Vertically centered */
+  justify-content: flex-start; /* Pushes to the LEFT */
+  padding-left: 20px;
+}
+
+.top-header h2{
+  padding-left: 10px;
+  font-size: 20px;
+}
+
+.header-logo {
+  max-height: 35px; /* Forced smaller than the 50px box */
+  max-width: 35px;  /* Keeps the square artwork inside */
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  filter: brightness(0) invert(1);
+}
+
+.logo-wrapper {
+  background-color: #006adb !important; /* Your Red */
+  width: 50px;
+  height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  margin-left: 20px;
+  flex-shrink: 0; 
+}
+
+.main-body {
+  grid-area: main;
+  display: flex;
+  flex-direction: column;
+  align-items: center;      /* Horizontal Center */
+  justify-content: flex-start; /* Vertical Top */
+  padding-top: 10px;        /* INCREASE THIS VALUE TO MOVE TEXT LOWER */
+}
+
+.right-header {
+  grid-area: right;
+  background-color: #f3f5f7;
+  padding: 20px;
+  text-align: left; /* Pushes all content in the sidebar to the left */
+}
+
+.transparency-card {
+  background-color: #ffffff; /* White background */
+  color: #000000;          
+  padding: 15px;
+  border-radius: 8px;
+  margin-top: 20px;
+}
+
+/* Specific text styling */
+.transparency-card h3 {
+  margin-top: 0;
+  font-size: 16px;
+}
+
+.transparency-card .description {
+  color: #666;               /* Grayish color */
+  font-size: 12px;           /* Little smaller font size */
+  line-height: 1.4;
+  margin-bottom: 0;
+}
+
+#message {
+  margin-top: 0;     
+  margin-bottom: 5px;  
+  color: #ffffff;    /* Increase the gap below it */
+  background-color: #002b86;
+}
+
+#message.error{
+  margin-top: 0;     
+  margin-bottom: 5px;  
+  color: #ffffff;    /* Increase the gap below it */
+  background-color: #861b00;
+}
+
+#info {
+  color: #777;
+  font-size: 14px;
+  margin-top: 5px;
+  text-align: center;
+  min-height: 18px; /* Prevents layout jumping when text is added/removed */
+}
+
+#slotActions {
+  margin-top: 100px;
+}
+
+button { padding: 12px 25px; margin: 8px; font-size: 16px; cursor: pointer; }
+.error { color: red; }
+.link { color: #2563eb; cursor: pointer; text-decoration: underline; font-size: 14px; }
+.modal { position: fixed; inset: 0; background: rgba(0,0,0,.5); display: flex; justify-content: center; align-items: center; z-index: 100; }
+.modal.hidden { display: none; }
+.modal-box { background: white; padding: 20px; border-radius: 10px; width: 300px; }
+.modal-box input { width: 90%; padding: 8px; margin: 6px 0; }
+.modal-msg { min-height: 18px; margin-bottom: 8px; font-size: 13px; }
+
+/* --- RESPONSIVE MOBILE LAYOUT FIXES (Max Width 768px) --- */
+@media (max-width: 768px) {
+
+  /* Allow the entire page to scroll vertically on a phone */
+  body {
+    overflow-y: visible !important;
+    height: auto !important;
+  }
+
+  /* 1. Change the main layout from 2 columns to 1 column */
+  .visitor-layout {
+    grid-template-columns: 1fr; /* Single column layout */
+    grid-template-rows: auto auto auto; /* Header, Main, Sidebar stack */
+    height: auto;
+    overflow-y: visible;
+  }
+  
+  /* 2. Fix the alignment of the top header */
+  .top-header {
+    justify-content: space-between; /* Space logo/title and potential buttons */
+    padding-right: 20px;
+  }
+
+  /* 3. Ensure the main content uses the full width available */
+  .main-body {
+    padding: 20px; /* Adjust padding for phone screens */
+    align-items: flex-start;
+  }
+
+  /* 4. Make all inner sections use the full width */
+  .admin-section, .span-container, .filled-span {
+    width: 100%;
+    padding: 0;
+    margin-left: 0;
+    margin-right: 0;
+    box-sizing: border-box;
+  }
+  
+  /* 5. Stack the side-by-side cards vertically */
+  .span-container {
+    flex-direction: column;
+    gap: 15px;
+  }
+
+  .styled-card {
+    width: auto; /* Cards use the full width */
+  }
+
+  /* 6. Fix font sizes for better mobile viewing */
+  .welcome-title {
+    font-size: 28px;
+  }
+
+  .description-gray, .description-admin {
+    font-size: 14px;
+    max-width: none;
+  }
+}
+
