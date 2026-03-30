@@ -99,7 +99,34 @@ if (sessionError || !session || session.status != 1) {
       logoutBtn.classList.remove("hidden");
     }
 
-    // 2. Handle Logout
+const sessionSubscription = client
+  .channel('db-changes')
+  .on(
+    'postgres_changes',
+    {
+      event: 'UPDATE',
+      schema: 'public',
+      table: 'rack_sessions',
+      filter: `id=eq.${storedData.dbRowId}`
+    },
+    (payload) => {
+      if (payload.new.status == 3) {
+        // Change the UI text instead of an annoying alert
+        messageEl.textContent = "Successfully logged out!";
+        userDetailsEl.innerHTML = "Hardware logout detected. Redirecting...";
+        logoutBtn.classList.add("hidden");
+
+        localStorage.removeItem("session_data");
+
+        // Wait 2 seconds so the user can actually read the message
+        setTimeout(() => {
+          window.location.href = `index.html?device=${device}&slot=${slot}`;
+        }, 2000);
+      }
+    }
+  )
+  .subscribe();
+
 logoutBtn.onclick = async () => {
     logoutBtn.disabled = true;
     messageEl.textContent = "Finalizing session...";
