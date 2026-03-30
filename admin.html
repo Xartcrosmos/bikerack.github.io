@@ -1,0 +1,1132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LockRack Admin Dashboard</title>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', sans-serif;
+        }
+
+        /* Using Grid to handle the layout without extra containers */
+        body {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            grid-template-rows: 60px 1fr;
+            height: 100vh;
+            background-color: #f4f7f6;
+        }
+
+        /* --- Header (Spans across both columns) --- */
+        .top-header {
+            grid-column: 1 / 3;
+            background-color: #006adb;
+            color: white;
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+        }
+
+        .top-header h2{
+        padding-left: 10px;
+        font-size: 22px;
+        font-weight:800;
+        }
+        .top-header h3{
+        padding-left: 10px;
+        font-size: 16px;
+        opacity:.85;
+        }
+
+        .header-logo {
+            height: 35px;
+            filter: brightness(0) invert(1);
+            margin-right: 15px;
+        }
+
+        .admin-profile {
+            margin-left: auto;       /* Pushes to the far right */
+            margin-right: 20px;      /* Keeps it from hitting the screen edge */
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 14px;
+            font-weight: 600;        /* Matches your bold sidebar style */
+        }
+
+        .admin-profile svg {
+            width: 20px;
+            height: 20px;
+        }
+
+        /* --- Sidebar --- */
+        #sidebar {
+            grid-row: 2;
+            width: 220px;
+            background: white;
+            border-right: 1px solid #ddd;
+            transition: width 0.3s ease;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #sidebar.collapsed {
+            width: 60px;
+        }
+            /* This pushes Settings and Logout to the bottom */
+        .nav-item:nth-last-child(2) {
+            margin-top: auto;
+        }
+        .nav-item {
+            display: flex;
+            align-items: center;
+            padding: 15px 23px;
+            cursor: pointer;
+            white-space: nowrap;
+            font-weight: bold;
+            color: #555;
+        }
+
+        .nav-item:hover {
+            background-color: #eef6ff; 
+            color: #006adb;
+        }
+        .nav-item.active {
+            background-color: #d0e4ff; /* Deeper blue background */
+            color: #004a99;            /* Even darker blue for text/icon */
+            font-weight: 600;
+        }
+
+        .nav-item svg {
+            width: 24px;
+            height: 24px;
+            margin-right: 20px;
+            flex-shrink: 0;
+        }
+
+        /* --- Main Content --- */
+        .main-content {
+            grid-row: 2;
+            padding: 2rem;
+            overflow-y: auto;
+        }
+
+        .logout-btn {
+            background-color: #ff4d4d; /* Red background */
+            color: white !important;   /* Ensure text/icon is white */
+        }
+
+        .logout-btn:hover {
+            background-color: #9c1e1e; /* Darker red on hover */
+            color: white !important;
+        }
+
+        /* Ensure icons in logout button stay white */
+        .logout-btn svg {
+            stroke: white;
+        }
+
+        .status-pill {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        /* Using green for 'active' and red for everything else */
+        .status-pill.online { background: #e6fcf5; color: #0ca678; } 
+        .status-pill.offline { background: #fff5f5; color: #fa5252; }
+
+        /* Hide panels by default unless they have the 'active-panel' class */
+        /* Updated for full flexibility */
+        .admin-panel {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            border: 1px solid #e0e0e0;
+            margin-bottom: 2rem;
+            display: none;
+
+            /* The Flexibility Fix */
+            max-width: 100%;       /* Keeps it within the screen */
+            overflow-x: auto;      /* Allows the table to scroll, NOT the panel */
+            width: 100%;           /* Ensures it fills available space */
+        }
+
+        /* Ensure the title inside the block looks distinct */
+        .admin-panel h2 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 22px;
+            border-bottom: 2px solid #f0f0f0;
+            padding-bottom: 10px;
+        }
+
+        .admin-panel.active-panel {
+            display: block !important; /* Shown when triggered */
+        }
+
+        .admin-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+
+        .admin-table th {
+            background-color: #f9f9f9; /* Light header to contrast with white body */
+            padding: 12px;
+            text-align: left;
+            border-bottom: 2px solid #eee;
+        }
+
+        .admin-table td {
+            padding: 12px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.5);
+    display: none; /* We change this to 'flex' via JS */
+    align-items: center;
+    justify-content: center;
+    z-index: 9999; /* Sit on top of everything */
+}
+
+/* Add this to ensure the panel inside is forced to show */
+.modal-overlay .admin-panel {
+    display: block !important; 
+    margin-bottom: 0;
+}
+.modal-content { 
+    width: 90%; max-width: 500px; margin-bottom: 0 !important; 
+}
+.modal-body input {
+    width: 100%; padding: 10px; margin-top: 5px;
+    border: 1px solid #ddd; border-radius: 6px;
+}
+.modal-actions {
+    display: flex; justify-content: flex-end; gap: 10px; margin-top: 25px;
+}
+.btn-primary { background: #006adb; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; }
+.btn-secondary { background: #eee; color: #333; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; }
+
+.btn-action {
+    background: none;
+    border: none;
+    color: #006adb;
+    font-weight: bold;
+    cursor: pointer;
+    padding: 5px 10px;
+    border-radius: 4px;
+    transition: background 0.2s;
+}
+
+.btn-action:hover {
+    background: #f0f7ff;
+}
+
+.stats-container {
+    display: flex;
+    gap: 20px;
+    justify-content: b;
+    flex-wrap: wrap; /* Helps on smaller screens */
+}
+
+.stat-block {
+    flex: 1; /* Makes all blocks equal width */
+    min-width: 150px;
+    padding: 20px;
+    border: 1px solid #e0e0e0;
+    border-radius: 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    background: #fff;
+}
+
+.stat-count {
+    font-size: 24px;
+    font-weight: 800;
+    /* Change 'black' to 'inherit' or 'currentColor' */
+    color: inherit; 
+    margin-bottom: 5px;
+    display: block;
+}
+
+.stat-label {
+    font-size: 14px;
+    color: #888;
+    font-weight: 500;
+}
+
+.stat-icon {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px; /* Or 50% for a circle */
+    margin-bottom: 12px;
+    
+    /* This is the magic part: */
+    background-color: color-mix(in srgb, currentColor, transparent 50%);
+}
+
+.stat-icon svg {
+    width: 22px;
+    height: 22px;
+    stroke: currentColor; /* Matches the theme color */
+}
+
+/* Your existing themes */
+.stat-icon svg {
+    width: 22px;
+    height: 22px;
+    stroke: currentColor; /* Matches the theme color */
+}
+
+/* Force SVGs to use the color of their parent */
+.stat-block svg {
+    stroke: currentColor;
+}
+
+/* Color Themes */
+.theme-gray { color: #006adb; }
+.theme-dark { color: #888; }
+.theme-green { color: #0ca678; }
+.theme-blue { color: #f59f0a; }
+
+.guide-panel { 
+    margin-top: 25px; 
+    border: 1px solid #eee; /* Light border */
+    padding: 15px 20px;     /* Tighten internal space */
+    border-radius: 8px;     /* Subtle curve */
+    min-width: 150px;
+}
+.guide-header { display: flex; align-items: center; gap: 8px; margin-bottom: 15px; }
+
+.guide-item { margin-bottom: 15px; }
+.guide-item b { display: block; font-size: 12px; color: #000; margin-bottom: 2px; }
+.guide-item p { font-size: 12px; color: #777; margin: 0; line-height: 1.4; }
+
+.guide-item svg{
+    width: 28px;
+    height: 28px;
+    margin-right: 20px;
+    flex-shrink: 0;
+    color: #777;
+}
+
+.guide-item {
+    display: flex;
+    align-items: flex-start; /* Keeps icon at the top even if text is long */
+    margin-bottom: 20px;
+}
+
+.guide-content {
+    display: flex;
+    flex-direction: column; /* Stacks Title and Paragraph */
+}
+
+.stats-section { margin-top: 30px; }
+
+.section-header { display: flex; align-items: center; margin-bottom: 15px; }
+
+.leaderboard-container { 
+    display: flex; 
+    gap: 15px; 
+}
+
+.leader-block {
+    flex: 1;
+    padding: 15px;
+    background: #E5E7EB; /* Very light gray background */
+    border-radius: 10px;
+    border-left: 4px solid #006adb; /* Blue accent "stripe" on the left */
+}
+
+.leader-label { font-size: 12px; color: #777; display: block; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.5px; }
+.leader-block b { font-size: 16px; color: #000; display: block; }
+.leader-block p { font-size: 13px; color: #555; margin: 2px 0 0 0; }
+    </style>
+</head>
+<body>
+
+    <header class="top-header">
+        <div id="home-btn" style="display: flex; align-items: center; cursor: pointer;">
+            <img src="logo.png" alt="Logo" class="header-logo">
+            <h2>LockRack</h2>
+            <h3>Admin Dashboard</h3>
+        </div>
+
+        <div class="admin-profile">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+            <circle cx="12" cy="7" r="4"></circle>
+        </svg>
+        <div style="display: flex; flex-direction: column; margin-left: 10px;">
+            <span style="font-weight: 600;">Welcome, Admin</span> 
+            <span style="font-size: 11px; color: #888;">
+                Status: <span id="status-dot">●</span> 
+                <span id="status-text">Checking...</span>
+                <span id="unit-names" style="color: #bbb; margin-left: 4px;"></span>
+            </span>
+        </div>
+    </div>
+    </header>
+
+    <nav id="sidebar">
+        <div class="nav-item" id="toggleSidebar">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+            <span>Menu</span>
+        </div>
+        <div class="nav-item">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
+            <span>View Racks</span>
+        </div>
+        <div class="nav-item">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+            <span>Manage Users</span>
+        </div>
+        <div class="nav-item">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+            <span>Session Logs</span>
+        </div>
+
+        <div class="nav-item">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+            <span>Settings</span>
+        </div>
+
+        <div class="nav-item logout-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+            <span>Logout</span>
+        </div>
+        
+    </nav>
+
+    <main class="main-content">
+
+        <div id="panel-default" class="admin-panel">
+            <h2 style="font-size: 18px; color: black; border-bottom: none; margin-bottom: 5px;">Rack Overview</h2>
+            <p style="font-size: 12px; color: #888; margin-bottom: 25px;">Monitor and manage all bike racks in the system</p>
+
+            <div class="stats-container">
+                <div class="stat-block theme-gray">
+                    <div class="stat-icon">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+                    </div> 
+                    <span id="total_racks" class="stat-count">0</span>
+                    <span class="stat-label">Total Unit</span>
+                </div>
+
+                <div class="stat-block theme-dark">
+                    <div class="stat-icon">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
+                    </div>
+                    <span id="total_slot" class="stat-count">0</span>
+                    <span class="stat-label">Total Slot</span>
+                </div>
+
+                <div class="stat-block theme-green">
+                    <div class="stat-icon">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
+                    </div>
+                    <span id="available_racks" class="stat-count">0</span>
+                    <span class="stat-label">Unoccupied</span>
+                </div>
+
+                <div class="stat-block theme-blue">
+                    <div class="stat-icon">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                    </div>
+                    <span id="occupied_racks" class="stat-count">0</span>
+                    <span class="stat-label">Occupied</span>
+                </div>
+            </div>
+
+            <div class="guide-panel">
+                <div class="guide-header">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#006adb" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                    <b style="font-size: 18px;">Quick Guide</b>
+                </div>
+
+                <div class="guide-item">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
+                    <div class="guide-content">
+                    <b>View Racks</b>
+                    <p>Update rack status or user association. See which racks are available or occupied.</p>
+                    </div>
+                </div>
+
+                <div class="guide-item">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                    <div class="guide-content">
+                    <b>Manage Users</b>
+                    <p>View details, contact info, and fingerprints. Deactivate or reactivate accounts.</p>
+                    </div>
+                </div>
+
+                <div class="guide-item">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                    <div class="guide-content">
+                    <b>Session Logs</b>
+                    <p>Review activity across all racks. Filter by date, rack, or action type.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="stats-section">
+    <div class="section-header">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#006adb" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline></svg>
+        <b style="font-size: 18px; margin-left: 8px;">Usage Statistics</b>
+    </div>
+
+            <div class="leaderboard-container">
+                    <div class="leader-block">
+                        <span class="leader-label">Top User</span>
+                        <b id="stat-top-user">User #1204</b>
+                        <p id="stat-top-user-val">48 Total Hours</p>
+                    </div>
+
+                    <div class="leader-block">
+                        <span class="leader-label">Most Used Rack</span>
+                        <b id="stat-top-rack">Rack B</b>
+                        <p id="stat-top-rack-val">85 Sessions</p>
+                    </div>
+
+                    <div class="leader-block">
+                        <span class="leader-label">Busiest Hour</span>
+                        <b id="stat-peak-time">08:00 AM</b>
+                        <p id="stat-peak-val">Peak Demand</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="panel-view-racks" class="admin-panel" style="display:none;">
+            <div class="panel-header">
+                <h2>View Rack - Live Rack Status</h2>
+                <p>Showing latest activity per slot</p>
+            </div>
+            
+            <table class="admin-table">
+                <thead>
+                    <tr>
+                        <th>UNIT (Device ID)</th>
+                        <th>SLOT</th>
+                        <th>USER</th>
+                        <th>STATUS</th>
+                    </tr>
+                </thead>
+                <tbody id="racks-tbody"></tbody>
+            </table>
+        </div>
+
+        <div id="panel-manage-users" class="admin-panel" style="display:none;">
+            <div class="panel-header">
+                <h2>User Management</h2>
+                <p>Showing registered users per slot</p>
+            </div>
+            
+            <table class="admin-table">
+                <thead>
+                    <tr>
+                        <th>REGISTERED AT</th>
+                        <th>UNIT</th>
+                        <th>USER</th>
+                        <th>CONTACT</th>
+                        <th>ACTIONS</th>
+                    </tr>
+                </thead>
+                <tbody id="users-tbody"></tbody>
+            </table>
+        </div>
+
+        <div id="panel-session-logs" class="admin-panel" style="display:none;">
+             <div class="panel-header">
+                <h2>Activity Logs</h2>
+                <p>Showing sessions that has ended.</p>
+            </div>
+            
+            <table class="admin-table">
+                <thead>
+                    <tr>
+                        <th>DATE</th>
+                        <th>UNIT</th>
+                        <th>SLOT</th>
+                        <th>USER</th>
+                        <th>USER ID</th>
+                        <th>TIMEIN</th>
+                        <th>TIMEOUT</th>
+                        <th>TOTAL</th>
+                    </tr>
+                </thead>
+                <tbody id="logs-tbody"></tbody>
+            </table>
+        </div>
+
+        <div id="panel-settings" class="admin-panel" style="display:none;">
+            <h2>Admin Settings</h2>
+            </div>
+
+    </main>
+
+        <div id="modal-edit" class="modal-overlay" style="display:none;">
+        <div class="admin-panel modal-content">
+            <h2 id="edit-modal-title">Edit User</h2>
+            <div class="modal-body">
+                <label>Name</label>
+                <input type="text" id="edit-name" placeholder="Enter name">
+                <label style="margin-top: 15px; display: block;">Contact</label>
+                <input type="text" id="edit-contact" placeholder="Enter contact">
+            </div>
+            <div class="modal-actions">
+                <button class="btn-secondary" onclick="closeModals()">Cancel</button>
+                <button class="btn-primary" id="save-edit-btn">Save Changes</button>
+            </div>
+        </div>
+        </div>
+
+        <div id="modal-confirm" class="modal-overlay" style="display:none;">
+            <div class="admin-panel modal-content" style="max-width: 400px;">
+                <h2 id="confirm-title">Confirm Action</h2>
+                <p id="confirm-msg" style="margin-bottom: 20px; color: #666;"></p>
+                <div class="modal-actions">
+                    <button class="btn-secondary" onclick="closeModals()">No</button>
+                    <button class="btn-primary" id="confirm-yes-btn">Yes</button>
+                </div>
+            </div>
+        </div>
+
+<script>
+    const DEFAULT_ID = "5b4df813-fe4c-4950-a4ed-c0b01d4b203f";
+    const urlParams = new URLSearchParams(window.location.search);
+    
+    if (!urlParams.has('id')) {
+        window.location.search = `?id=${DEFAULT_ID}`;
+    }
+
+    const SUPABASE_URL = "https://lguyiavotyrxdlyhsvmz.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxndXlpYXZvdHlyeGRseWhzdm16Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkxNzQ0MjQsImV4cCI6MjA4NDc1MDQyNH0.f1hT0B68mv2lxVsQldk3ABx_0yBBUK2t1fcRHWGhmyM";
+    const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    const navItems = document.querySelectorAll('.nav-item');
+    const panels = document.querySelectorAll('.admin-panel');
+    const sidebarBtn = document.getElementById("toggleSidebar");
+
+    // Get the ID from the URL we just validated
+    const adminId = urlParams.get('id');
+
+    // This will hold your array of device_uuids once fetched
+    let allUnit = [];
+    let unitMapping = {}
+    
+// 1. Updated fetch to return the array directly
+async function fetchAdminUnits() {
+    const { data, error } = await client
+        .from('device_unit')
+        .select('uuid')
+        .eq('admin_id', adminId)
+        .order('created_at', { ascending: true }); // Ordering ensures Unit A is always the oldest/first
+
+    if (error) return [];
+
+    const ids = data.map(item => item.uuid);
+    allUnit = ids;
+
+    // Reset and fill the mapping
+    unitMapping = {};
+    ids.forEach((id, index) => {
+        unitMapping[id] = String.fromCharCode(65 + index); 
+    });
+
+    return ids;
+}
+
+// This runs the function automatically when the page loads
+document.addEventListener('DOMContentLoaded', () => {
+    loadDashboardStats();
+});
+
+async function loadDashboardStats() {
+    // 1. Fetch Total Units
+    const { data: unitData, count: unitCount, error: err1 } = await client
+        .from('device_unit')
+        .select('availability', { count: 'exact'})
+        .eq('admin_id', adminId);
+
+    // 2. Fetch ALL sessions to calculate both Live and Stats
+    const { data: allSessions, error: err2 } = await client
+        .from('rack_sessions')
+        .select('status, user_id, device_uuid, timein, timeout')
+        .in('device_uuid', allUnit);
+
+    if (err1 || err2 || !allSessions) return;
+
+    const now = new Date();
+    const oneMin = 60000; // 60 seconds in milliseconds
+    
+    // Check how many units are checking in
+    const onlineCount = (unitData || []).filter(u => (now - new Date(u.availability)) < oneMin).length;
+    const totalCount = unitCount || 0; // Use the unitCount we already fetched
+
+    const dot = document.getElementById('status-dot');
+    const txt = document.getElementById('status-text');
+    const names = document.getElementById('unit-names');
+
+    if (totalCount > 0 && onlineCount === totalCount) {
+        dot.style.color = "#0ca678"; txt.innerText = "Online"; txt.style.color = "#0ca678";
+        names.innerText = `(${totalCount} Units)`;
+    } else if (onlineCount > 0) {
+        dot.style.color = "#fab005"; txt.innerText = "Partial"; txt.style.color = "#fab005";
+        names.innerText = `(${onlineCount}/${totalCount} Online)`;
+    } else {
+        dot.style.color = "#fa5252"; txt.innerText = "Offline"; txt.style.color = "#fa5252";
+        names.innerText = totalCount > 0 ? `(${totalCount} Units)` : "";
+    }
+    
+    // --- CALCULATIONS ---
+    const totalRacks = unitCount || 0;
+    const totalSlots = totalRacks * 2;
+    
+    // Live Counters Logic
+    const occupied = allSessions.filter(s => s.status === 1).length;
+    const available = totalSlots - occupied;
+
+    // Leaderboard Logic (Usage Stats)
+    const userDurations = {}, rackCounts = {}, hourCounts = Array(24).fill(0);
+
+    allSessions.forEach(s => {
+        if (s.status === 3 && s.timeout) { // Only for completed sessions
+            const hrs = (new Date(s.timeout) - new Date(s.timein)) / 3600000;
+            userDurations[s.user_id] = (userDurations[s.user_id] || 0) + hrs;
+            rackCounts[s.device_uuid] = (rackCounts[s.device_uuid] || 0) + 1;
+            hourCounts[new Date(s.timein).getHours()]++;
+        }
+    });
+
+    // Find the winners
+    const topUID = Object.keys(userDurations).reduce((a, b) => userDurations[a] > userDurations[b] ? a : b, "N/A");
+    const topRID = Object.keys(rackCounts).reduce((a, b) => rackCounts[a] > rackCounts[b] ? a : b, "N/A");
+    const peakH = hourCounts.indexOf(Math.max(...hourCounts));
+
+    // --- UPDATE UI ---
+    document.getElementById('total_racks').innerText = totalRacks;
+    document.getElementById('total_slot').innerText = totalSlots;
+    document.getElementById('occupied_racks').innerText = occupied;
+    document.getElementById('available_racks').innerText = available > 0 ? available : 0;
+
+    // Update Leaderboard IDs
+    document.getElementById('stat-top-user').innerText = topUID !== "N/A" ? `User #${topUID.substring(0, 5)}` : "No Data";
+    document.getElementById('stat-top-user-val').innerText = topUID !== "N/A" ? `${userDurations[topUID].toFixed(1)} Total Hours` : "0 Hours";
+    document.getElementById('stat-top-rack').innerText = topRID !== "N/A" ? `Unit ${topRID.substring(0, 5)}` : "No Data";
+    document.getElementById('stat-top-rack-val').innerText = topRID !== "N/A" ? `${rackCounts[topRID]} Total Sessions` : "0 Sessions";
+    document.getElementById('stat-peak-time').innerText = `${peakH % 12 || 12}:00 ${peakH >= 12 ? 'PM' : 'AM'}`;
+}
+
+// Call this inside your home-btn click and on initial load
+document.getElementById('home-btn').addEventListener('click', () => {
+
+    
+    loadDashboardStats();
+});
+
+// 2. Updated load to wait properly
+async function loadRackStatus() {
+    const tbody = document.getElementById('racks-tbody');
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">Loading rack data...</td></tr>';
+
+    // 1. Force the wait for IDs
+    let unitIds = allUnit.length > 0 ? allUnit : await fetchAdminUnits();
+
+    // 2. STOP if no IDs found (prevents the freeze)
+    if (!unitIds || unitIds.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">No units found for this Admin ID.</td></tr>';
+        return;
+    }
+
+    // 3. The Query
+// ... existing query code above ...
+    const { data, error } = await client
+        .from('rack_sessions')
+        .select(`
+            *,
+            registration:user_id (name)
+        `)
+        .in('device_uuid', unitIds) 
+        .order('created_at', { ascending: false });
+
+    // --- The New Logic: Ensure 2 slots per unit ---
+    const latestSlots = {};
+
+    // 1. First, pre-fill every unit with "Empty" Slot 1 and Slot 2
+unitIds.forEach(id => {
+        const letter = unitMapping[id];
+        latestSlots[`${id}-1`] = { unit_label: letter, slot: 1, display_name: '', status: 'INACTIVE' };
+        latestSlots[`${id}-2`] = { unit_label: letter, slot: 2, display_name: '', status: 'INACTIVE' };
+    });
+
+    // 2. Overwrite with actual data from Supabase if it exists
+// Inside the loop in loadRackStatus:
+    data.forEach(row => {
+        const key = `${row.device_uuid}-${row.slot}`;
+        if (latestSlots[key] && latestSlots[key].display_name === '') {
+            const letter = unitMapping[row.device_uuid] || '?';
+            
+            const statusText = row.status == 1 ? 'ACTIVE' : 'INACTIVE';
+            const name = (statusText === 'ACTIVE' && row.registration) ? row.registration.name : '';
+
+            latestSlots[key] = {
+                unit_label: letter,
+                slot: row.slot,
+                display_name: name,
+                status: statusText
+            };
+        }
+    });
+
+    renderRacksTable(Object.values(latestSlots));
+}
+
+async function loadManageUsers() {
+    const tbody = document.getElementById('users-tbody'); // Ensure this ID exists in your HTML
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">Loading registered users...</td></tr>';
+
+    const { data, error } = await client
+        .from('registration')
+        .select('*')
+        .eq('admin_id', adminId)
+        .eq('status', 3)
+        .order('created_at', { ascending: false });
+
+    if (error) {
+        console.error("User Fetch Error:", error);
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:red;">Error loading users.</td></tr>';
+        return;
+    }
+
+    if (data.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">No completed registrations found.</td></tr>';
+        return;
+    }
+
+    renderUsersTable(data);
+}
+
+async function loadSessionLogs() {
+    const tbody = document.getElementById('logs-tbody');
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;">Loading session history...</td></tr>';
+
+    const { data, error } = await client
+        .from('rack_sessions')
+        .select(`
+            *,
+            registration:user_id (name)
+        `)
+        .eq('admin_id', adminId)
+        .eq('status', 3)
+        .order('created_at', { ascending: false });
+
+    if (error) {
+        console.error("Logs Fetch Error:", error);
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; color:red;">Error loading logs.</td></tr>';
+        return;
+    }
+
+    renderLogsTable(data);
+}
+    // Execute immediately on load
+    fetchAdminUnits();
+
+    // This runs automatically on page load/reload
+    document.getElementById('panel-default').classList.add('active-panel');
+    // Ensure no sidebar items are highlighted initially
+    navItems.forEach(nav => nav.classList.remove('active'));
+
+    // --- 1. Top Header Trigger (Default Panel) ---
+    document.getElementById('home-btn').addEventListener('click', () => {
+        hideAllPanas(); // Hide any open Racks, Users, etc.
+        document.getElementById('panel-default').classList.add('active-panel'); // Show Dashboard
+        
+        // Clear sidebar highlights so no menu option looks "stuck"
+        navItems.forEach(nav => nav.classList.remove('active'));
+    });
+
+    // --- 2. Sidebar Menu Triggers ---
+    navItems.forEach(item => {
+        item.addEventListener('click', function() {
+            const label = this.querySelector('span').innerText;
+
+            // Ignore "Menu" and "Logout" for panel switching
+            if (label === "Menu" || label === "Logout") return;
+
+            // Set the "active" class on the button (your trigger)
+            navItems.forEach(nav => nav.classList.remove('active'));
+            this.classList.add('active');
+
+            // Execute the panel switch based on the label
+            switchPanel(label);
+        });
+    });
+
+    // Helper: Hide everything
+    function hideAllPanas() {
+        panels.forEach(p => p.classList.remove('active-panel'));
+    }
+
+function renderRacksTable(sessionData) {
+    const tbody = document.getElementById('racks-tbody');
+    
+    if (sessionData.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">No sessions found.</td></tr>';
+        return;
+    }
+tbody.innerHTML = sessionData.map(row => {
+        // Apply styling based on the new text status
+        const statusClass = row.status === 'ACTIVE' ? 'online' : 'offline';
+        
+        return `
+            <tr>
+                <td style="font-weight: bold; color: #006adb;">Unit ${row.unit_label}</td>
+                <td>Slot ${row.slot}</td>
+                <td>${row.display_name}</td>
+                <td><span class="status-pill ${statusClass}">${row.status}</span></td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function renderUsersTable(users) {
+    const tbody = document.getElementById('users-tbody');
+    
+    tbody.innerHTML = users.map(user => {
+        // Format the date (e.g., Jan 24, 2024)
+        const date = new Date(user.created_at).toLocaleDateString(undefined, {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric'
+        });
+
+        // Use the public unitMapping for the letter
+        const unitLetter = unitMapping[user.device_uuid] || '?';
+
+        return `
+            <tr>
+                <td>${date}</td>
+                <td style="font-weight: bold;">Unit ${unitLetter}</td>
+                <td>${user.name}</td>
+                <td>${user.contact}</td>
+                <td>
+                    <button class="btn-action" onclick="openEditModal('${user.id}', '${user.name}', '${user.contact}')">Edit</button>
+                    <button class="btn-action" style="color:red;" onclick="openDeleteModal('${user.id}')">Delete</button>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function renderLogsTable(logs) {
+    const tbody = document.getElementById('logs-tbody');
+    
+    if (logs.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;">No completed sessions found.</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = logs.map(row => {
+        const unitLetter = unitMapping[row.device_uuid] || '?';
+        const userName = row.registration ? row.registration.name : 'Unknown';
+
+        // 1. Format the Main Date (e.g., 02/25/2026)
+        const dateObj = new Date(row.created_at);
+        const displayDate = dateObj.toLocaleDateString();
+
+        // 2. Format the Times (e.g., 7:27 AM)
+        const formatTime = (ts) => ts ? new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--';
+        const timeInStr = formatTime(row.timein);
+        const timeOutStr = formatTime(row.timeout);
+
+        // 3. Calculate Total Duration in Minutes
+        let totalMinutes = 0;
+        if (row.timein && row.timeout) {
+            const start = new Date(row.timein);
+            const end = new Date(row.timeout);
+            // Difference in ms / 1000 (seconds) / 60 (minutes)
+            totalMinutes = Math.round((end - start) / 60000);
+        }
+
+        return `
+            <tr>
+                <td>${displayDate}</td>
+                <td style="font-weight: bold;">Unit ${unitLetter}</td>
+                <td>Slot ${row.slot}</td>
+                <td>${userName}</td>
+                <td>${row.user_id}</td>
+                <td>${timeInStr}</td>
+                <td>${timeOutStr}</td>
+                <td style="font-weight: bold; color: #006adb;">${totalMinutes > 0 ? totalMinutes : 0} min</td>
+            </tr>
+        `;
+    }).join('');
+}
+    // Helper: Match the "active" button text to the Panel ID
+function switchPanel(label) {
+    hideAllPanas();
+    
+    if (label === "View Racks") {
+        document.getElementById('panel-view-racks').classList.add('active-panel');
+        loadRackStatus(); // <--- This triggers the live data load
+    } else if (label === "Manage Users") {
+        document.getElementById('panel-manage-users').classList.add('active-panel');
+        loadManageUsers();
+    } else if (label === "Session Logs") {
+        document.getElementById('panel-session-logs').classList.add('active-panel');
+        loadSessionLogs();
+    } else if (label === "Settings") {
+        document.getElementById('panel-settings').classList.add('active-panel');
+    }
+}
+
+    // Your existing Sidebar toggle function
+    sidebarBtn.onclick = function () {
+        document.getElementById('sidebar').classList.toggle('collapsed');
+    }
+
+    // 1. Open Edit Modal
+async function openEditModal(userId, currentName, currentContact) {
+    const modal = document.getElementById('modal-edit');
+    
+    // Fill the inputs
+    document.getElementById('edit-name').value = currentName;
+    document.getElementById('edit-contact').value = currentContact;
+    
+    // Show the overlay
+    modal.style.display = 'flex';
+
+    document.getElementById('save-edit-btn').onclick = async () => {
+        const newName = document.getElementById('edit-name').value;
+        const newContact = document.getElementById('edit-contact').value;
+
+        const { error } = await client
+            .from('registration')
+            .update({ name: newName, contact: newContact })
+            .eq('id', userId);
+
+        if (error) {
+            alert("Update failed: " + error.message);
+        } else {
+            closeModals();
+            loadManageUsers(); // Refresh the table
+        }
+    };
+}
+
+// 2. Open Delete Modal (Simplified)
+function openDeleteModal(userId) {
+    const modal = document.getElementById('modal-confirm');
+    document.getElementById('confirm-title').innerText = "Delete User";
+    document.getElementById('confirm-msg').innerText = "Are you sure? This cannot be undone.";
+    
+    modal.style.display = 'flex';
+    
+    document.getElementById('confirm-yes-btn').onclick = async () => {
+        // Instead of .delete(), we use .update()
+        const { error } = await client
+            .from('registration')
+            .update({ status: -1 }) // Set status to -1 (soft delete)
+            .eq('id', userId);
+
+        if (error) {
+            alert("Error: " + error.message);
+        } else {
+            console.log("User moved to inactive/deleted status.");
+            closeModals();
+            loadManageUsers(); // This will refresh the table and the user will disappear
+        }
+    };
+}
+
+// 3. Global Close
+function closeModals() {
+    document.getElementById('modal-edit').style.display = 'none';
+    document.getElementById('modal-confirm').style.display = 'none';
+}
+// 3. Open Logout (Reusing Confirm Modal)
+document.querySelector('.logout-btn').onclick = () => {
+    const modal = document.getElementById('modal-confirm');
+    document.getElementById('confirm-title').innerText = "Logout";
+    document.getElementById('confirm-msg').innerText = "Are you sure you want to logout?";
+    
+    modal.style.display = 'flex';
+    
+    document.getElementById('confirm-yes-btn').onclick = () => {
+        window.location.href = "login.html"; // Or your logout logic
+    };
+};
+
+// Function to initialize Realtime listeners
+function initRealtime() {
+    // 1. Listen for Rack Session changes (Live Rack Status)
+    client
+        .channel('schema-db-changes')
+        .on(
+            'postgres_changes',
+            {
+                event: '*', // Listen for ALL changes (Insert, Update, Delete)
+                schema: 'public',
+                table: 'rack_sessions'
+            },
+            (payload) => {
+                console.log('Rack Change detected!', payload);
+                // If the "View Racks" panel is currently active, refresh it
+                if (document.getElementById('panel-view-racks').classList.contains('active-panel')) {
+                    loadRackStatus();
+                }
+                // Also refresh logs if that panel is open
+                if (document.getElementById('panel-session-logs').classList.contains('active-panel')) {
+                    loadSessionLogs();
+                }
+            }
+        )
+        .subscribe();
+
+    // 2. Listen for Registration changes (User Management)
+    client
+        .channel('user-changes')
+        .on(
+            'postgres_changes',
+            {
+                event: '*',
+                schema: 'public',
+                table: 'registration'
+            },
+            (payload) => {
+                console.log('User change detected!', payload);
+                if (document.getElementById('panel-manage-users').classList.contains('active-panel')) {
+                    loadManageUsers();
+                }
+            }
+        )
+        .subscribe();
+}
+
+// Start the listeners!
+initRealtime();
+</script>
+
+</body>
+</html>
