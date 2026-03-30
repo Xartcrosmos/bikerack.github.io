@@ -61,8 +61,28 @@
         window.location.href = "index.html";
         return;
       }
-      
-      await client.from("registration").delete().eq("device_uuid", currentDevice).eq("slot", currentSlot).eq("status", 0);
+
+      // --- FIX #1: SEARCH INSTEAD OF DELETE ---
+      const { data: existing } = await client
+        .from("registration")
+        .select("*")
+        .eq("device_uuid", currentDevice)
+        .eq("slot", currentSlot)
+        .in("status", [0, 1, 2])
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (existing) {
+        // Privacy check: If older than 5 minutes, clear the inputs
+        const recordTime = new Date(existing.created_at).getTime();
+        const isStale = (Date.now() - recordTime) > (5 * 60 * 1000);
+
+        if (!isStale) {
+          nInput.value = existing.name || "";
+          cInput.value = existing.contact || "";
+        }
+      }
 
       titleEl.textContent = `Registering for Slot ${currentSlot}`;
       formBox.classList.remove("hidden");
@@ -72,38 +92,40 @@
         const name = nInput.value.trim();
         const contact = cInput.value.trim();
         if (!name || !contact) return;
+        
         nInput.readOnly = true;
         cInput.readOnly = true; 
         submitBtn.disabled = true;
         statusMsg.className = "msg muted";
         statusMsg.textContent = "Processing...";
-    
-        // 1. GET THE ADMIN ID OF THIS RACK
-        const { data: unit } = await client .from("device_unit") .select("admin_id") .eq("uuid", currentDevice) .maybeSingle();
-          if (!unit || !unit.admin_id) {
-          nInput.readOnly = false;
-          cInput.readOnly = false; 
-          submitBtn.disabled = false;
-          return statusMsg.textContent = "Error: Rack owner not found.";}
-          statusMsg.textContent = "Waiting for fingerprint...";
-    
-        // 2. INSERT WITH ADMIN_ID
-        const { data, error } = await client.from("registration").insert([{device_uuid: currentDevice,slot: currentSlot,name: name,contact: contact, admin_id: unit.admin_id,status: 0}]).select().single();
-          if(error) {
-            nInput.readOnly = false;
-            cInput.readOnly = false; 
-            submitBtn.disabled = false;
-            statusMsg.textContent = "Error: " + error.message;
-            return; }
 
-          pollStatus(data.id); 
+        // 1. GET ADMIN ID
+        const { data: unit } = await client.from("device_unit").select("admin_id").eq("uuid", currentDevice).maybeSingle();
+        if (!unit || !unit.admin_id) {
+          nInput.readOnly = false; cInput.readOnly = false; submitBtn.disabled = false;
+          return statusMsg.textContent = "Error: Rack owner not found.";
+        }
+
+        // --- FIX #2: UPDATE IF EXISTS, INSERT IF NEW ---
+        let activeId;
+        const { data: checkAgain } = await client.from("registration").select("id").eq("device_uuid", currentDevice).eq("slot", currentSlot).in("status", [0, 1, 2]).maybeSingle();
+
+        if (checkAgain) {
+          const { data } = await client.from("registration").update({ name, contact, status: 0, created_at: new Date().toISOString() }).eq("id", checkAgain.id).select().single();
+          activeId = data.id;
+        } else {
+          const { data, error } = await client.from("registration").insert([{ device_uuid: currentDevice, slot: currentSlot, name, contact, admin_id: unit.admin_id, status: 0 }]).select().single();
+          if (error) { /* handle error */ return; }
+          activeId = data.id;
+        }
+
+        statusMsg.textContent = "Waiting for fingerprint...";
+        pollStatus(activeId); 
       };
     };
 
     async function pollStatus(id) {
-      // 1. ADD "id" TO THE SELECT
       const { data } = await client.from("registration").select("id, status").eq("id", id).single();
-    
       if (!data) return;
     
       switch (data.status) {
@@ -111,8 +133,12 @@
         case 1: statusMsg.textContent = "Scan fingerprint again..."; break;
         case 2:
           statusMsg.className = "msg error";
-          alert("Fingerprint already existed, error was found. Please try again.");
+          alert("Registration failed (Duplicate or Quality issue). Please try again.");
+          // Reset to status 0 so ESP32 knows to try this ID again
           await client.from("registration").update({ status: 0 }).eq("id", id); 
+          // Re-enable form
+          nInput.readOnly = false; cInput.readOnly = false; submitBtn.disabled = false;
+          statusMsg.textContent = "Try again...";
           break;
           
         case 3: 
@@ -123,7 +149,6 @@
             window.location.href = `index.html?device=${currentDevice}&slot=${currentSlot}`;
           }, 1500);
           return;
-        case 4: clearTimeout(pollTimer); return;
       }
       pollTimer = setTimeout(() => pollStatus(id), 2000);
     }
