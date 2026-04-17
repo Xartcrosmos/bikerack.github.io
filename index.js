@@ -121,69 +121,111 @@ loginBtn.onclick=async()=>{
   localStorage.setItem("admin_id",data.id); location.href = `admin.html?id=${data.id}`;
 };
 
+let realtimeChannel = null;
+
+const subscribeToLogin = (rowId) => {
+  // Clean up any existing channel
+  if (realtimeChannel) client.removeChannel(realtimeChannel);
+
+  realtimeChannel = client
+    .channel('public:rack_sessions')
+    .on(
+      'postgres_changes',
+      {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'rack_sessions',
+        filter: `id=eq.${rowId}`
+      },
+      async (payload) => {
+        const data = payload.new;
+        
+        // Status 0: Still waiting (no action needed)
+        if (data.status === 0) return;
+
+        // Status 1: Success!
+        if (data.status === 1) {
+          // Unsubscribe immediately so we don't trigger twice
+          client.removeChannel(realtimeChannel);
+          
+          const userId = data.user_id;
+
+          // --- SECURITY CHECK (Same as your original logic) ---
+          const { data: userReg } = await client.from("registration").select("admin_id").eq("id", userId).maybeSingle();
+          
+          if (!userReg || !userReg.admin_id) {
+            alert("No valid user registration found.");
+            await client.from("rack_sessions").update({ status: 0 }).eq("id", rowId);
+            return; 
+          }
+
+          const { data: ownedUnit } = await client.from("device_unit")
+            .select("uuid")
+            .eq("admin_id", userReg.admin_id)
+            .eq("uuid", currentDevice)
+            .maybeSingle();
+
+          if (!ownedUnit) {
+            alert("You're not registered to this unit yet.");
+            await client.from("rack_sessions").update({ status: 0 }).eq("rowId", rowId);
+            return;
+          }
+          // --- END SECURITY CHECK ---
+
+          // Finalize session
+          await client.from("sessions").update({ user_id: userId }).eq("session_id", sessionId);
+          await client.from("rack_sessions").update({ timein: new Date().toISOString() }).eq("id", rowId); 
+          
+          localStorage.setItem("session_data", JSON.stringify({ currentDevice, currentSlot, userId, dbRowId: rowId }));
+          window.location.href = `login.html?device=${currentDevice}&slot=${currentSlot}&id=${userId}`;
+        } 
+        
+        // Status 2: Recognition Failed
+        else if (data.status === 2) {
+          alert("Fingerprint not recognized.");
+          // Reset status to 0 to let hardware try again
+          await client.from("rack_sessions").update({ status: 0 }).eq("id", rowId);
+        }
+      }
+    )
+    .subscribe();
+};
+
+// Update your Login Button handler
 loginUserBtn.onclick = async () => {
   loginUserBtn.disabled = true;
   registerBtn.disabled = true;
-  const { data: deviceData, error: deviceError } = await client.from("device_unit").select("admin_id").eq("uuid", currentDevice).single();
-  if (deviceError || !deviceData) {
+  
+  const { data: deviceData } = await client.from("device_unit").select("admin_id").eq("uuid", currentDevice).single();
+  
+  if (!deviceData) {
     loginUserBtn.disabled = false;
     registerBtn.disabled = false;
-    return showError(deviceError?.message || "Device configuration not found.");
+    return showError("Device not found.");
   }
-  messageEl.textContent = "Please scan fingerprint to login...";
-  const { data, error } = await client.from("rack_sessions").insert([{ device_uuid: currentDevice, slot: currentSlot, status: 0, admin_id: deviceData.admin_id }]).select().single();
+
+  messageEl.textContent = "Please scan fingerprint...";
+
+  const { data, error } = await client.from("rack_sessions")
+    .insert([{ 
+      device_uuid: currentDevice, 
+      slot: currentSlot, 
+      status: 0, 
+      admin_id: deviceData.admin_id 
+    }])
+    .select()
+    .single();
+
   if (error) {
     loginUserBtn.disabled = false;
     registerBtn.disabled = false;
     return showError(error.message);
   }
-  pollLogin(data.id);
+
+  // Instead of pollLogin(data.id), use the subscriber
+  subscribeToLogin(data.id);
 };
 
-
-async function pollLogin(id){
-  const { data } = await client.from("rack_sessions").select("status, user_id").eq("id", id).single();
-  if(!data) return;
-  if(data.status === 0) loginPollTimer = setTimeout(() => pollLogin(id), 2000);
-  if(data.status === 1) {
-    clearTimeout(loginPollTimer);
-    const userId = data.user_id;
-    // 1. Get the Admin ID linked to this User ID
-    const { data: userReg } = await client .from("registration") .select("admin_id") .eq("id", userId) .maybeSingle();
-      if (!userReg || !userReg.admin_id) {
-        alert("No valid user registration found. Please register.");
-        await client.from("rack_sessions").update({ status: 0 }).eq("id", id);
-        pollLogin(id);
-        return; 
-      }
-    // 2. Check if the CURRENT DEVICE UUID belongs to that Admin
-    const { data: ownedUnit } = await client .from("device_unit") .select("uuid") .eq("admin_id", userReg.admin_id) .eq("uuid", currentDevice) .maybeSingle();
-      if (!ownedUnit) {
-        alert("You're not registered to this unit yet. Please register.");
-         await client.from("rack_sessions").update({ status: 0 }).eq("id", id);
-        pollLogin(id);
-        return;
-      }
-    // --- END SECURITY CHECK ---
-    const { error: updateError } = await client.from("rack_sessions") .update({ user_id: userId }) .eq("id", id);
-
-    if (updateError) {
-        console.error("Update failed:", updateError.message);
-        alert("Database sync failed. Please try again.");
-        return;
-    }
-    await client.from("sessions").update({ user_id: userId }).eq("session_id", sessionId);
-    const { error: timeInError } = await client.from("rack_sessions").update({ timein: new Date().toISOString() }).eq("id", id); 
-    if (timeInError) {console.error("Time-in update failed:", timeInError.message);}
-    localStorage.setItem("session_data", JSON.stringify({ currentDevice, currentSlot, userId, dbRowId: id }));
-    window.location.href = `login.html?device=${currentDevice}&slot=${currentSlot}&id=${userId}`;
-    return;
-  } else if(data.status === 2){ 
-    alert("Fingerprint not recognized."); 
-    await client.from("rack_sessions").update({ status: 0 }).eq("id", id); 
-    pollLogin(id); 
-  }
-}
 /* ========= REGISTER BUTTON HANDLER (SLOT MODE) ========= */
 registerBtn.onclick = () => {
   window.location.href = `register.html?device=${currentDevice}&slot=${currentSlot}`;
