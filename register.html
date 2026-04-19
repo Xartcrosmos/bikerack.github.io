@@ -6,38 +6,167 @@
   <title>BikeRack Registration</title>
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
   <style>
-    body { font-family: Arial, sans-serif; text-align: center; margin-top: 60px; }
-    input { padding: 8px; margin: 6px; font-size: 15px; width: 220px; }
-    button { padding: 10px 20px; margin-top: 10px; cursor: pointer; }
-    .hidden { display:none; }
-    .msg { margin-top:15px; font-weight:bold; }
-    .error { color:red; }
-    .success { color:green; }
-    .muted { color:#777; }
+    /* 1. Global Reset & Background */
+    body { 
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+      background-color: #006adb; /* Matches your index/dashboard blue */
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      margin: 0;
+    }
+
+    /* 2. The Main Container (The Wrapper) */
+    .rack-wrapper {
+      border: 2px solid black;
+      padding: 35px;
+      width: 90%;
+      max-width: 400px;
+      border-radius: 12px;
+      background-color: #ffffff;
+      box-shadow: 4px 4px 0px 0px rgba(0,0,0,1);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      gap: 15px;
+    }
+
+    h2 { 
+      text-transform: uppercase; 
+      letter-spacing: 1px; 
+      margin: 0; 
+      font-size: 1.4rem;
+      color: #000;
+    }
+
+    /* 3. Input Styling */
+    .input-group { 
+      width: 100%; 
+      text-align: left; 
+    }
+    
+    label { 
+      font-weight: bold; 
+      font-size: 0.75rem; 
+      text-transform: uppercase; 
+      display: block; 
+      margin-bottom: 5px; 
+      color: #333;
+    }
+
+    input { 
+      width: 100%; 
+      padding: 12px; 
+      border: 2px solid black; 
+      border-radius: 6px; 
+      font-size: 16px;
+      box-sizing: border-box; /* Prevents padding from breaking width */
+      outline: none;
+    }
+
+    input:focus {
+      background-color: #f0f8ff;
+    }
+
+    /* 4. Action Button */
+    button { 
+      width: 100%;
+      padding: 15px; 
+      font-size: 16px; 
+      font-weight: bold;
+      cursor: pointer; 
+      border: 2px solid black; 
+      border-radius: 6px; 
+      background: #000; 
+      color: white; 
+      transition: 0.2s; 
+      text-transform: uppercase;
+      margin-top: 10px;
+    }
+
+    button:hover:not(:disabled) { 
+      background: #333; 
+      transform: translate(-2px, -2px);
+      box-shadow: 2px 2px 0px black;
+    }
+
+    button:disabled { 
+      background: #ccc; 
+      border-color: #999; 
+      cursor: not-allowed; 
+    }
+
+    /* 5. Status & Feedback Area */
+    .status-msg {
+      margin-top: 10px;
+      font-weight: bold;
+      font-size: 0.9rem;
+      min-height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .muted { color: #666; }
+    .error { color: #c0392b; }
+    .success { color: #27ae60; }
+
+    /* 6. Utility classes */
+    .hidden { display: none; }
+
+    /* 7. Toast Styling (For Back-Button Trap later) */
+    .toast {
+      position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+      background: #c0392b; color: white; padding: 15px 25px; border-radius: 8px;
+      border: 2px solid black; box-shadow: 4px 4px 0px black; z-index: 10000;
+      display: flex; flex-direction: column; align-items: center; gap: 10px;
+      visibility: hidden; opacity: 0; transition: 0.3s;
+    }
+    .toast.show { visibility: visible; opacity: 1; }
+    .toast-action-btn { cursor: pointer; font-weight: bold; border: 1px solid black; padding: 5px 15px; background: white; color: black; }
   </style>
 </head>
 <body>
 
-  <h2 id="title">Preparing registration...</h2>
+  <div class="rack-wrapper">
+  <img src="logo.png" alt="Logo" style="width: 60px; margin-bottom: 10px;" onerror="this.style.display='none'">
+  
+  <h2 id="title">Slot Registration</h2>
+  
   <div id="formBox" class="hidden">
-    <input id="nameInput" placeholder="Your Name" />
-    <br/>
-    <input id="contactInput" placeholder="Contact Number" />
-    <br/>
-    <button id="submitBtn">Submit & Scan Fingerprint</button>
-  </div>
-  <div id="statusMsg" class="msg muted"></div>
+    <div class="input-group">
+      <label for="nameInput">Name</label>
+      <input id="nameInput" placeholder="Name" autocomplete="name" />
+    </div>
 
-  <script>
+    <div class="input-group">
+      <label for="emailInput">Email</label>
+      <input id="emailInput" type="tel" placeholder="name@email.com" />
+    </div>
+
+    <button id="submitBtn">Submit & Enroll</button>
+  </div>
+
+  <div id="statusMsg" class="status-msg muted">Register now to use our LockRack.</div>
+</div>
+
+<div id="toast" class="toast">
+  <div id="toast-message">Please complete registration first.</div>
+  <button id="toast-btn" class="toast-action-btn">Try Again</button>
+</div>
+
+  <script type="module">
     const SUPABASE_URL = "https://lguyiavotyrxdlyhsvmz.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxndXlpYXZvdHlyeGRseWhzdm16Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkxNzQ0MjQsImV4cCI6MjA4NDc1MDQyNH0.f1hT0B68mv2lxVsQldk3ABx_0yBBUK2t1fcRHWGhmyM";
-    const client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     const titleEl = document.getElementById("title");
     const formBox = document.getElementById("formBox");
     const statusMsg = document.getElementById("statusMsg");
     const submitBtn = document.getElementById("submitBtn");
-    const cInput = document.getElementById("contactInput");
+    const cInput = document.getElementById("emailInput");
     const nInput = document.getElementById("nameInput");
 
     let pollTimer = null, heartbeat = null, sessionId = null, currentDevice = null, currentSlot = null;
@@ -50,6 +179,34 @@
       await client.from("sessions").update({ last_seen: now() }).eq("session_id", sessionId);
     };
     const startHeartbeat = () => { stopHeartbeat(); runHeartbeat(); heartbeat = setInterval(runHeartbeat, 15000); };
+
+// Function to show your custom toast
+async function showToast(msg, isError = false, activeId = null) {
+  const t = document.getElementById("toast");
+  document.getElementById("toast-message").textContent = msg;
+  t.classList.add("show");
+
+  // When the user clicks the button
+  document.getElementById("toast-btn").onclick = async () => {
+    t.classList.remove("show");
+
+    // If it's the fingerprint error, we reset the status to 0
+    if (isError && activeId) {
+      statusMsg.textContent = "Retrying... Please scan your finger.";
+      
+      await client.from("registration")
+        .update({ status: 0 })
+        .eq("id", activeId);
+    }
+  };
+}
+
+// Trap the back button
+history.pushState(null, null, window.location.href);
+window.onpopstate = () => {
+  history.pushState(null, null, window.location.href);
+  showToast("Registration in progress. Please complete the form.");
+};
 
     window.onload = async () => {
       const params = new URLSearchParams(window.location.search);
@@ -80,7 +237,7 @@
 
         if (!isStale) {
           nInput.value = existing.name || "";
-          cInput.value = existing.contact || "";
+          cInput.value = existing.email || "";
         }
       }
 
@@ -90,8 +247,11 @@
 
       submitBtn.onclick = async () => {
         const name = nInput.value.trim();
-        const contact = cInput.value.trim();
-        if (!name || !contact) return;
+        const email = cInput.value.trim();
+        if (!name || !email) {
+          showToast("Please enter your name and email.");
+          return;
+        }
         
         nInput.readOnly = true;
         cInput.readOnly = true; 
@@ -111,16 +271,44 @@
         const { data: checkAgain } = await client.from("registration").select("id").eq("device_uuid", currentDevice).eq("slot", currentSlot).in("status", [0, 1, 2]).maybeSingle();
 
         if (checkAgain) {
-          const { data } = await client.from("registration").update({ name, contact, status: 0, created_at: new Date().toISOString() }).eq("id", checkAgain.id).select().single();
+          const { data } = await client.from("registration").update({ name, email, status: 0, created_at: new Date().toISOString() }).eq("id", checkAgain.id).select().single();
           activeId = data.id;
         } else {
-          const { data, error } = await client.from("registration").insert([{ device_uuid: currentDevice, slot: currentSlot, name, contact, admin_id: unit.admin_id, status: 0 }]).select().single();
+          const { data, error } = await client.from("registration").insert([{ device_uuid: currentDevice, slot: currentSlot, name, email, admin_id: unit.admin_id, status: 0 }]).select().single();
           if (error) { /* handle error */ return; }
           activeId = data.id;
         }
 
-        statusMsg.textContent = "Waiting for fingerprint...";
-        pollStatus(activeId); 
+        statusMsg.textContent = "Please scan your finger...";
+
+// Instant updates from the hardware
+client.channel('reg-updates')
+  .on('postgres_changes', { 
+    event: 'UPDATE', 
+    schema: 'public', 
+    table: 'registration', 
+    filter: `id=eq.${activeId}` 
+  }, (payload) => {
+    const status = payload.new.status;
+    
+    if (status === 0) {
+      statusMsg.textContent = "Place finger on scanner...";
+    } else if (status === 5) {
+      statusMsg.textContent = "Scanning...";
+    }else if (status === 1) {
+      statusMsg.textContent = "Place finger again to confirm...";
+    } else if (status === 2) {
+      showToast("Scan failed. Try again.", true, activeId); // Use activeId
+      nInput.readOnly = true; cInput.readOnly = true; submitBtn.disabled = true;
+    } else if (status === 3) {
+      statusMsg.className = "status-msg success";
+      statusMsg.textContent = "Success! Redirecting...";
+      window.onpopstate = null; // Release the back-button trap
+      setTimeout(() => {
+        window.location.href = `index.html?device=${currentDevice}&slot=${currentSlot}`;
+      }, 1500);
+    }
+  }).subscribe(); 
       };
     };
 
