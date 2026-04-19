@@ -57,8 +57,12 @@ body {
   align-items: center; /* Vertically centers the text with the logo */
   justify-content: center; /* Keeps the whole group centered */
   gap: 15px; /* Space between logo and text */
-  margin-bottom: 40px; /* Space between header and buttons */
   width: 100%;
+}
+
+body:has(#visitorActions.hidden) {
+    background-color: #006adb; /* A very light red so it's not blinding */
+    transition: background-color 0.5s ease;
 }
 
 .muted {
@@ -259,6 +263,83 @@ body {
   text-align: left; /* Pushes all content in the sidebar to the left */
 }
 
+.rack-wrapper {
+  border: 2px solid black;
+  padding: 35px;
+  margin: 20px auto;
+  max-width: 400px; /* Adjust based on your mobile screen size */
+  border-radius: 12px;
+  background-color: #ffffff;
+  box-shadow: 4px 4px 0px 0px rgba(0,0,0,1); /* Adds a "pop" shadow common in modern UI */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Ensure the inner content fits the wrapper */
+#slotActions {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+/* Make buttons look consistent within the wrapper */
+#loginUserBtn, #registerBtn {
+  padding: 12px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.toast {
+  position: fixed;
+  top: 30px;
+  left: 50%;
+  transform: translateX(-50%) scale(0.9);
+  background: #2c3e50;
+  color: white;
+  padding: 20px 30px;
+  border-radius: 12px;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+  z-index: 10000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 15px;
+  transition: all 0.3s ease;
+  opacity: 0;
+  visibility: hidden;
+}
+
+.toast.show {
+  transform: translateX(-50%) scale(1);
+  opacity: 1;
+  visibility: visible;
+  color: white;
+  font-weight: bold;
+}
+
+.toast-action-btn {
+  background: #ecf0f1;
+  color: #2c3e50;
+  border: none;
+  padding: 8px 20px;
+  border-radius: 5px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.toast-action-btn:hover {
+  background: #bdc3c7;
+}
+
+/* Red Background for Errors */
+.toast.error {
+  background: #c0392b;
+}
+
 .transparency-card {
   background-color: #ffffff; /* White background */
   color: #000000;          
@@ -280,14 +361,14 @@ body {
   margin-bottom: 0;
 }
 
-#message {
+#Vmsg {
   margin-top: 0;     
   margin-bottom: 5px;  
   color: #ffffff;    /* Increase the gap below it */
   background-color: #002b86;
 }
 
-#message.error{
+#Smsg.error{
   margin-top: 0;     
   margin-bottom: 5px;  
   color: #ffffff;    /* Increase the gap below it */
