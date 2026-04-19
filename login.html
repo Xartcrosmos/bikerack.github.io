@@ -3,29 +3,123 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>User Dashboard - Smart BikeRack</title>
+  <title>LockRack - User Dashboard</title>
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
   <style>
-    body { font-family: Arial, sans-serif; text-align: center; margin-top: 100px; background: #f4f4f9; }
-    .card { background: white; padding: 30px; border-radius: 12px; display: inline-block; box-shadow: 0 4px 10px rgba(0,0,0,0.1); width: 320px; }
-    h2 { color: #333; }
-    .info { margin: 20px 0; color: #666; font-size: 15px; }
-    button { padding: 12px 30px; font-size: 16px; cursor: pointer; border: none; border-radius: 6px; background: #ef4444; color: white; transition: 0.2s; }
-    button:hover { background: #dc2626; }
+    /* 1. Global Styles matching index.html */
+    body { 
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+      background: #f4f4f9; 
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      margin: 0;
+      background-color: #006adb;
+    }
+
+    /* 2. The "Wrapper" design */
+    .rack-wrapper {
+      border: 2px solid black;
+      padding: 35px;
+      margin: 20px auto;
+      max-width: 400px; /* Adjust based on your mobile screen size */
+      border-radius: 12px;
+      background-color: #ffffff;
+      box-shadow: 4px 4px 0px 0px rgba(0,0,0,1); /* Adds a "pop" shadow common in modern UI */
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .header-logo {
+      width: 60px;
+      margin-bottom: 10px;
+    }
+
+    h2 { 
+      color: #000; 
+      margin: 10px 25px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    /* 3. Info Display */
+    .info-box { 
+      margin: 20px 0; 
+      padding: 15px;
+      background: #fdfdfd;
+      border: 2px solid #eee;
+      border-radius: 8px;
+      text-align: left;
+      line-height: 1.6;
+      color: #333;
+      width: 150px;
+    }
+
+    .info-box strong {
+      color: #000;
+      font-size: 0.9em;
+      text-transform: uppercase;
+    }
+
+    /* 4. Action Button */
+    button { 
+      width: 100%;
+      padding: 15px; 
+      font-size: 16px; 
+      font-weight: bold;
+      cursor: pointer; 
+      border: 2px solid black; 
+      border-radius: 6px; 
+      background: #000; 
+      color: white; 
+      transition: 0.2s; 
+      text-transform: uppercase;
+    }
+
+    button:hover { 
+      background: #333; 
+      transform: translate(-2px, -2px);
+      box-shadow: 2px 2px 0px black;
+    }
+
+    button:disabled {
+      background: #ccc;
+      border-color: #999;
+      cursor: not-allowed;
+    }
+
     .hidden { display: none; }
+
+    /* Success state for hardware logout */
+    .success-msg {
+      color: #27ae60;
+      font-weight: bold;
+    }
   </style>
 </head>
 <body>
 
-  <div class="card">
-    <h2 id="message">User Dashboard</h2>
-    <div id="userDetails" class="info">
-      Loading session details...
+  <div class="rack-wrapper">
+    <img src="logo.png" alt="Logo" class="header-logo">
+    <h2 id="message">Active Session</h2>
+    
+    <div id="userDetails" class="info-box">
+      <strong>Status:</strong> Initializing...
     </div>
-    <button id="logoutBtn" class="hidden">Logout</button>
+
+    <button id="logoutBtn" class="hidden">End Session</button>
   </div>
 
-  <script type=module>
+  <script type="module">
+    // (Keep your existing JS logic here - it is perfectly functional)
+    // Just ensure the following element IDs match:
+    // messageEl -> "message"
+    // userDetailsEl -> "userDetails"
+    // logoutBtn -> "logoutBtn"
+
     const SUPABASE_URL = "https://lguyiavotyrxdlyhsvmz.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxndXlpYXZvdHlyeGRseWhzdm16Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkxNzQ0MjQsImV4cCI6MjA4NDc1MDQyNH0.f1hT0B68mv2lxVsQldk3ABx_0yBBUK2t1fcRHWGhmyM";
     const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -33,126 +127,84 @@
     const messageEl = document.getElementById("message");
     const userDetailsEl = document.getElementById("userDetails");
     const logoutBtn = document.getElementById("logoutBtn");
-    // 1. Get Params from URL
+
     const params = new URLSearchParams(window.location.search);
     const device = params.get("device");
     const slot = params.get("slot");
     const userId = params.get("id");
 
     const storedData = JSON.parse(localStorage.getItem("session_data"));
-      // Use != (loose inequality) to ignore String vs Number differences
-      if (!storedData || 
-          storedData.currentDevice != device || 
-          storedData.currentSlot != slot || 
-          storedData.userId != userId) {
-          
-          alert("You don't have access to this profile.");
-          if (storedData && storedData.currentDevice) {
-            window.location.href = `login.html?device=${storedData.currentDevice}&slot=${storedData.currentSlot}&id=${storedData.userId}`;
-          } else {
-            window.location.href = "index.html";
-          }
-          throw new Error("Unauthorized access blocked"); 
-      }
 
+    // 1. Create a "buffer" in the history
+window.addEventListener('beforeunload', (event) => {
+  // This triggers the browser's built-in "Leave site? Changes may not be saved" dialog
+  event.preventDefault();
+  
+  // Note: Modern browsers ignore custom text and show their own standard message
+  event.returnValue = ''; 
+});
+    
+    // Authorization & Validation Logic
+    if (!storedData || storedData.currentDevice != device || storedData.currentSlot != slot || storedData.userId != userId) {
+        alert("You don't have access to this profile.");
+        window.location.href = "index.html";
+        throw new Error("Unauthorized");
+    }
+
+    // Verify status from DB
     const { data: session, error: sessionError } = await client
-  .from("rack_sessions")
-  .select("status")
-  .eq("id", storedData.dbRowId) // This is the 'id' we just saved in index.html
-  .maybeSingle();
+      .from("rack_sessions")
+      .select("status")
+      .eq("id", storedData.dbRowId)
+      .maybeSingle();
 
-// 3. Validation logic
-if (sessionError || !session || session.status != 1) {
-    alert("Session has expired or is no longer active.");
-    localStorage.removeItem("session_data");
-    window.location.href = `index.html?device=${device}&slot=${slot}`;
-    throw new Error("Session expired");
-}
+    if (sessionError || !session || session.status != 1) {
+        localStorage.removeItem("session_data");
+        window.location.href = `index.html?device=${device}&slot=${slot}`;
+    }
 
+    // Fetch User Info
     let userName = "N/A";
-
-    if (!device || !slot || !userId) {
-      messageEl.textContent = "Invalid Session";
-      userDetailsEl.textContent = "Missing required parameters.";
-      logoutBtn.classList.add("hidden");
-    } else {
-      
-      // --- NEW: Fetch User Name ---
-      const { data: user, error: nameError } = await client
+    const { data: user } = await client
       .from("registration")
       .select("name")
       .eq("id", Number(userId))
       .maybeSingle();
     
-      if (nameError) console.error("Error fetching name:", nameError.message);
-      
-      if (user && user.name) {
-        userName = user.name; 
-      }
-      // --- UPDATED DISPLAY ---
-      userDetailsEl.innerHTML = `
-        <strong>Name:</strong> ${userName}<br>
-        <strong>Device:</strong> ${device}<br>
-        <strong>Slot:</strong> ${slot}<br>
-        <strong>User ID:</strong> ${userId}
-      `;
-      logoutBtn.classList.remove("hidden");
-    }
+    if (user) userName = user.name;
 
-const sessionSubscription = client
-  .channel('db-changes')
-  .on(
-    'postgres_changes',
-    {
-      event: 'UPDATE',
-      schema: 'public',
-      table: 'rack_sessions',
-      filter: `id=eq.${storedData.dbRowId}`
-    },
-    (payload) => {
-      if (payload.new.status == 3) {
-        // Change the UI text instead of an annoying alert
-        messageEl.textContent = "Successfully logged out!";
-        userDetailsEl.innerHTML = "Hardware logout detected. Redirecting...";
-        logoutBtn.classList.add("hidden");
+    userDetailsEl.innerHTML = `
+      <strong>User:</strong> ${userName}<br>
+      <strong>User ID:</strong> ${userId}<br>
+      <strong>Slot:</strong> #${slot}
+    `;
+    logoutBtn.classList.remove("hidden");
+
+    // Realtime Listener for Hardware Logout
+    client.channel('db-changes')
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'rack_sessions', filter: `id=eq.${storedData.dbRowId}` }, 
+      (payload) => {
+        if (payload.new.status == 3) {
+          messageEl.textContent = "Logged Out";
+          userDetailsEl.innerHTML = '<span class="success-msg">Hardware trigger detected. Slot released.</span>';
+          logoutBtn.classList.add("hidden");
+          localStorage.removeItem("session_data");
+          setTimeout(() => { window.location.href = `index.html?device=${device}&slot=${slot}`; }, 2000);
+        }
+      }).subscribe();
+
+    // Manual Logout
+    logoutBtn.onclick = async () => {
+        logoutBtn.disabled = true;
+        messageEl.textContent = "Releasing...";
+        
+        await client.from("rack_sessions")
+          .update({ status: 3, timeout: new Date().toISOString() }) 
+          .eq("id", storedData.dbRowId);
 
         localStorage.removeItem("session_data");
-
-        // Wait 2 seconds so the user can actually read the message
-        setTimeout(() => {
-          window.location.href = `index.html?device=${device}&slot=${slot}`;
-        }, 2000);
-      }
-    }
-  )
-  .subscribe();
-
-logoutBtn.onclick = async () => {
-    logoutBtn.disabled = true;
-    messageEl.textContent = "Finalizing session...";
-
-    const userIdInt = Number(userId);
-    const slotInt = Number(slot);
-    
-      try {
-          const { error } = await client
-              .from("rack_sessions")
-              .update({ status: 3, timeout: new Date().toISOString() }) 
-              .eq("device_uuid", device)
-              .eq("slot", slotInt) 
-              .eq("user_id", userIdInt) 
-              .eq("status", 1);
-  
-          if (error) throw error;
-      } catch (err) {
-          console.error("Logout Error:", err.message);
-      } finally {
-          localStorage.removeItem("session_data");
-          setTimeout(() => {
-              window.location.href = `index.html?device=${device}&slot=${slot}`;
-          }, 1200);
-        }
-      };
+        window.location.href = `index.html?device=${device}&slot=${slot}`;
+    };
   </script>
 </body>
 </html>
