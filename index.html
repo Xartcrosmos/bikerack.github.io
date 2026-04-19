@@ -8,7 +8,7 @@
   <link rel="stylesheet" href="index.css">
 </head>
 <body>
-<h4 id="message"></h4>
+<h4 id="Vmsg"></h4>
 <!-- VISITOR ACTIONS (Visible if no device/slot in URL) -->
   <div id="visitorActions" class="hidden">
   <div class="visitor-layout">
@@ -94,17 +94,25 @@
   <!-- SLOT ACTIONS (Visible if device/slot in URL) -->
 
   <div id="slotActions" class="hidden">
+    <div class="rack-wrapper">
     <div class="slot-header">
     <div class="logo-wrapper">
       <img src="logo.png" alt="Logo" class="header-logo">
     </div>
+    
     <span class="slot-label">LockRack</span>
     <div id="info" class="muted"></div>
     </div>
+    <h4 id="Smsg"></h4>
     <button id="loginUserBtn">Login</button>
     <button id="registerBtn">Register</button>
   </div>
+</div>
 
+<div id="toast" class="toast hidden">
+  <div id="toast-message"></div>
+  <button id="toast-btn" class="toast-action-btn">Try Again!</button>
+</div>
 <!-- MODALS -->
 <div id="claimModal" class="modal hidden"><div class="modal-box"><h3>Claim Device</h3><div class="modal-msg muted"></div><input id="uuidInput" placeholder="Device UUID"/><input id="otcInput" placeholder="OTC Code"/><button id="claimBtn">Next</button><button id="cancelClaim">Cancel</button></div></div>
 <div id="createModal" class="modal hidden"><div class="modal-box"><h3>Create Admin Account</h3><div class="modal-msg muted"></div><input id="emailInput" placeholder="Email"/><input id="passInput" type="password" placeholder="Password"/><button id="createBtn">Register</button><button id="cancelCreate">Cancel</button></div></div>
