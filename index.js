@@ -2,7 +2,8 @@ const SUPABASE_URL = "https://lguyiavotyrxdlyhsvmz.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxndXlpYXZvdHlyeGRseWhzdm16Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkxNzQ0MjQsImV4cCI6MjA4NDc1MDQyNH0.f1hT0B68mv2lxVsQldk3ABx_0yBBUK2t1fcRHWGhmyM";
 const client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-const messageEl = document.getElementById("message");
+const msgELV = document.getElementById("Vmsg");
+const msgELS = document.getElementById("Smsg");
 const infoEl = document.getElementById("info");
 const visitorActions = document.getElementById("visitorActions");
 const slotActions = document.getElementById("slotActions");
@@ -12,7 +13,13 @@ const sidebar = document.getElementById('right-sidebar');
 const toggleBtn = document.getElementById('sidebar-toggle-btn');
 
 const now = () => Math.floor(Date.now()/1000);
-const showError = (m)=>{messageEl.textContent=m;messageEl.className="error";};
+const showError = async (m) => {
+  await showToast(m, "error");
+  // We remove window.location.reload() from here
+  msgELS.textContent = m;
+  msgELS.className = "error";
+  window.location.reload();
+};
 const stopHeartbeat = ()=>{ if(heartbeat) clearInterval(heartbeat); };
 
 function openModal(id){document.getElementById(id).classList.remove("hidden");}
@@ -29,14 +36,13 @@ const runHeartbeat = async () => {
 
 const startHeartbeat = () => { stopHeartbeat(); runHeartbeat(); heartbeat = setInterval(runHeartbeat, 15000); };
 
-window.addEventListener("load", async ()=>{
+window.addEventListener("load", async () => {
   const params = new URLSearchParams(location.search);
   currentDevice = params.get("device");
   currentSlot = parseInt(params.get("slot"), 10);
 
-  if(!currentDevice || Number.isNaN(currentSlot)){
-    messageEl.textContent = "Welcome! Please scan a QR code to use a slot.";
-    
+  if (!currentDevice || Number.isNaN(currentSlot)) {
+    msgELV.textContent = "Welcome! Please scan a QR code to use a slot.";
     visitorActions.classList.remove("hidden");
     return;
   }
@@ -44,31 +50,39 @@ window.addEventListener("load", async ()=>{
   visitorActions.classList.add("hidden");
   document.querySelector("#slotActions #info").textContent = `Slot #${currentSlot}`;
 
-  await client
-    .from("rack_sessions")
-    .delete()
-    .eq("device_uuid", currentDevice)
-    .eq("slot", currentSlot)
-    .eq("status", 0);
+  // 1. Initial cleanup
+  await client.from("rack_sessions").delete().eq("device_uuid", currentDevice).eq("slot", currentSlot).eq("status", 0);
 
+  // 2. Check Device Status
   const { data: unit } = await client.from("device_unit").select("status").eq("uuid", currentDevice).maybeSingle();
-  if (!unit || unit.status !== "claimed") return showError("This device is not activated. Please contact admin.");
+  if (!unit || unit.status !== "claimed") {
+    return await showError("This device is not activated. Please contact admin.");
+  }
 
+  // 3. Check Physical Occupancy
   const { data: rack } = await client.from("rack_sessions").select("status").eq("device_uuid", currentDevice).eq("slot", currentSlot).eq("status", 1).maybeSingle();
-  if (rack) return showError("Slot is physically occupied.");
+  if (rack) {
+    return await showError("Slot is physically occupied.");
+  }
 
   sessionKey = `session_${currentDevice}_${currentSlot}`;
   sessionId = localStorage.getItem(sessionKey) || crypto.randomUUID();
 
+  // 4. Check Active Digital Session
   const { data: active } = await client.from("sessions").select("session_id").eq("device_uuid", currentDevice).eq("slot", currentSlot).gt("last_seen", now() - 60).maybeSingle();
-  if (active && active.session_id !== sessionId) return showError("Slot is in use by another user.");
+  if (active && active.session_id !== sessionId) {
+    return await showError("Slot is in use by another user.");
+  }
 
+  // 5. Upsert Session
   const { error: upsertErr } = await client.from("sessions").upsert([{ device_uuid: currentDevice, slot: currentSlot, session_id: sessionId, last_seen: now() }], { onConflict: 'device_uuid, slot' });
-  if (upsertErr) return showError("Could not start session.");
+  if (upsertErr) {
+    return await showError("Could not start session.");
+  }
 
   localStorage.setItem(sessionKey, sessionId);
   slotActions.classList.remove("hidden");
-  messageEl.textContent = `Rack Ready - Slot ${currentSlot}`;
+  msgELS.textContent = `Rack Ready - Slot ${currentSlot}`;
   startHeartbeat();
 });
 
@@ -121,6 +135,25 @@ loginBtn.onclick=async()=>{
   localStorage.setItem("admin_id",data.id); location.href = `admin.html?id=${data.id}`;
 };
 
+function showToast(message, type = 'info') {
+  return new Promise((resolve) => {
+    const toast = document.getElementById("toast");
+    const msgEl = document.getElementById("toast-message");
+    const btn = document.getElementById("toast-btn");
+
+    msgEl.textContent = message;
+    toast.className = `toast show ${type}`;
+
+    // This function runs only when the button is clicked
+    btn.onclick = () => {
+      toast.classList.remove("show");
+      // Delay resolve slightly so the animation finishes
+      setTimeout(resolve, 300); 
+    };
+  });
+}
+
+// Replace the old pollLogin function with this
 let realtimeChannel = null;
 
 const subscribeToLogin = (rowId) => {
@@ -143,6 +176,11 @@ const subscribeToLogin = (rowId) => {
         // Status 0: Still waiting (no action needed)
         if (data.status === 0) return;
 
+        if (data.status === 5) {
+          msgELS.textContent = "Scanning...";
+          return; // Wait for the next update (1 or 2)
+        }
+
         // Status 1: Success!
         if (data.status === 1) {
           // Unsubscribe immediately so we don't trigger twice
@@ -154,9 +192,12 @@ const subscribeToLogin = (rowId) => {
           const { data: userReg } = await client.from("registration").select("admin_id").eq("id", userId).maybeSingle();
           
           if (!userReg || !userReg.admin_id) {
-            alert("No valid user registration found.");
+            await showToast("No valid registration found.", "error"); 
+            
+            // 2. ONLY UPDATE TO 0 AFTER CLICK
             await client.from("rack_sessions").update({ status: 0 }).eq("id", rowId);
-            return; 
+            msgELS.textContent = "Please scan fingerprint...";
+            return;
           }
 
           const { data: ownedUnit } = await client.from("device_unit")
@@ -166,8 +207,10 @@ const subscribeToLogin = (rowId) => {
             .maybeSingle();
 
           if (!ownedUnit) {
-            alert("You're not registered to this unit yet.");
-            await client.from("rack_sessions").update({ status: 0 }).eq("rowId", rowId);
+            await showToast("Not registered to this unit.", "error");
+            
+            await client.from("rack_sessions").update({ status: 0 }).eq("id", rowId);
+            msgELS.textContent = "Please scan fingerprint...";
             return;
           }
           // --- END SECURITY CHECK ---
@@ -182,9 +225,10 @@ const subscribeToLogin = (rowId) => {
         
         // Status 2: Recognition Failed
         else if (data.status === 2) {
-          alert("Fingerprint not recognized.");
-          // Reset status to 0 to let hardware try again
+          await showToast("Fingerprint not recognized.", "error");
+
           await client.from("rack_sessions").update({ status: 0 }).eq("id", rowId);
+          msgELS.textContent = "Please scan fingerprint...";
         }
       }
     )
@@ -204,7 +248,7 @@ loginUserBtn.onclick = async () => {
     return showError("Device not found.");
   }
 
-  messageEl.textContent = "Please scan fingerprint...";
+  msgELS.textContent = "Please scan fingerprint...";
 
   const { data, error } = await client.from("rack_sessions")
     .insert([{ 
@@ -225,7 +269,6 @@ loginUserBtn.onclick = async () => {
   // Instead of pollLogin(data.id), use the subscriber
   subscribeToLogin(data.id);
 };
-
 /* ========= REGISTER BUTTON HANDLER (SLOT MODE) ========= */
 registerBtn.onclick = () => {
   window.location.href = `register.html?device=${currentDevice}&slot=${currentSlot}`;
