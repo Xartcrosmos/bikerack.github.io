@@ -143,7 +143,7 @@
 
     <div class="input-group">
       <label for="emailInput">Email</label>
-      <input id="emailInput" type="tel" placeholder="name@email.com" />
+      <input id="emailInput" type="email" placeholder="name@email.com" />
     </div>
 
     <button id="submitBtn">Submit & Enroll</button>
@@ -169,7 +169,7 @@
     const cInput = document.getElementById("emailInput");
     const nInput = document.getElementById("nameInput");
 
-    let pollTimer = null, heartbeat = null, sessionId = null, currentDevice = null, currentSlot = null;
+    let heartbeat = null, sessionId = null, currentDevice = null, currentSlot = null;
 
     const now = () => Math.floor(Date.now() / 1000);
     const stopHeartbeat = ()=>{ if(heartbeat) clearInterval(heartbeat); };
@@ -293,6 +293,8 @@ client.channel('reg-updates')
     
     if (status === 0) {
       statusMsg.textContent = "Place finger on scanner...";
+    } else if (status === 6) {
+      statusMsg.textContent = "Please lift your finger";
     } else if (status === 5) {
       statusMsg.textContent = "Scanning...";
     }else if (status === 1) {
@@ -311,36 +313,7 @@ client.channel('reg-updates')
   }).subscribe(); 
       };
     };
-
-    async function pollStatus(id) {
-      const { data } = await client.from("registration").select("id, status").eq("id", id).single();
-      if (!data) return;
     
-      switch (data.status) {
-        case 0: statusMsg.textContent = "Waiting for fingerprint..."; break;
-        case 1: statusMsg.textContent = "Scan fingerprint again..."; break;
-        case 2:
-          statusMsg.className = "msg error";
-          alert("Registration failed (Duplicate or Quality issue). Please try again.");
-          // Reset to status 0 so ESP32 knows to try this ID again
-          await client.from("registration").update({ status: 0 }).eq("id", id); 
-          // Re-enable form
-          nInput.readOnly = false; cInput.readOnly = false; submitBtn.disabled = false;
-          statusMsg.textContent = "Try again...";
-          break;
-          
-        case 3: 
-          statusMsg.className = "msg success";
-          statusMsg.textContent = "Registration successful! Redirecting...";
-          clearTimeout(pollTimer);
-          setTimeout(() => {
-            window.location.href = `index.html?device=${currentDevice}&slot=${currentSlot}`;
-          }, 1500);
-          return;
-      }
-      pollTimer = setTimeout(() => pollStatus(id), 2000);
-    }
-
     document.addEventListener("visibilitychange", () => {
       if (document.hidden) stopHeartbeat();
       else if (sessionId) startHeartbeat(); 
