@@ -455,3 +455,93 @@ button { padding: 12px 25px; margin: 8px; font-size: 16px; cursor: pointer; }
   }
 }
 
+/* --- Modal Overlay --- */
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.6); /* Dim background */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  backdrop-filter: blur(4px); /* Modern blur effect */
+}
+
+/* --- Modal Box --- */
+.modal-box {
+  background: #ffffff;
+  padding: 2rem;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 400px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+  text-align: center;
+}
+
+.modal-box h3 {
+  margin-top: 0;
+  color: #333;
+  font-size: 1.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.modal-msg {
+  font-size: 0.9rem;
+  margin-bottom: 1.5rem;
+  color: #666;
+}
+
+/* --- Inputs --- */
+.modal-box input {
+  width: 100%;
+  padding: 12px;
+  margin: 8px 0;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  box-sizing: border-box; /* Ensures padding doesn't break width */
+  font-size: 1rem;
+  outline-color: #4A90E2; /* Change this to your primary brand color */
+}
+
+/* --- Buttons --- */
+.modal-box button {
+  width: 100%;
+  padding: 12px;
+  margin-top: 10px;
+  border: none;
+  border-radius: 6px;
+  font-size: 1rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+/* Action Buttons (Login, Register, Claim) */
+#claimBtn, #createBtn, #otpVerifyBtn, #loginBtn {
+  background-color: #2e92cc; /* A nice "Success" green */
+  color: white;
+}
+
+#claimBtn:hover, #createBtn:hover, #otpVerifyBtn:hover, #loginBtn:hover {
+  background-color: #2e92cc;
+}
+
+/* Cancel Buttons */
+#cancelClaim, #cancelCreate, #cancelLogin {
+  background-color: #f1f1f1;
+  color: #666;
+  margin-top: 5px;
+}
+
+#cancelClaim:hover, #cancelCreate:hover, #cancelLogin:hover {
+  background-color: #e5e5e5;
+  color: #333;
+}
+
+/* --- Utility --- */
+.hidden {
+  display: none !important;
+}
